@@ -240,16 +240,30 @@ module.exports.buildConfig = function buildConfig(params) {
   let certSuffix = fs.existsSync(path.resolve(__dirname, "dev-server.local.pem"))
     ? ".local"
     : ".shared";
+
+  // Use custom certificates if configured, otherwise use default dev-server certs
+  const httpsKey = envConfig.dev?.httpsKey;
+  const httpsCert = envConfig.dev?.httpsCert;
+  const useCustomCerts =
+    httpsKey && httpsCert && fs.existsSync(httpsKey) && fs.existsSync(httpsCert);
+
   const devServer =
     NODE_ENV !== "development"
       ? {}
       : {
           server: {
             type: "https",
-            options: {
-              key: fs.readFileSync(path.resolve(__dirname, "dev-server" + certSuffix + ".pem")),
-              cert: fs.readFileSync(path.resolve(__dirname, "dev-server" + certSuffix + ".pem")),
-            },
+            options: useCustomCerts
+              ? {
+                  key: fs.readFileSync(httpsKey),
+                  cert: fs.readFileSync(httpsCert),
+                }
+              : {
+                  key: fs.readFileSync(path.resolve(__dirname, "dev-server" + certSuffix + ".pem")),
+                  cert: fs.readFileSync(
+                    path.resolve(__dirname, "dev-server" + certSuffix + ".pem"),
+                  ),
+                },
           },
           // host: '192.168.1.9',
           proxy: [
