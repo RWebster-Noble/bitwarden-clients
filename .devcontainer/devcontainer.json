@@ -127,10 +127,10 @@
     }
   },
 
-  // Run args for hosts file mapping (vault.bitwarden.localhost -> localhost)
+  // Run args for hosts file mapping (vault.qa.bitwarden.pw -> localhost)
   // and device access for FIDO2 virtual USB-HID device from fido2-hid-bridge
   "runArgs": [
-    "--add-host=vault.bitwarden.localhost:127.0.0.1",
+    "--add-host=vault.qa.bitwarden.pw:127.0.0.1",
     // UHID device for virtual USB-HID (fido2-hid-bridge)
     "--device=/dev/uhid",
     // Allow dynamic hidraw device access (major 241)
@@ -175,8 +175,8 @@
   },
 
   // Use 'postCreateCommand' to run commands after the container is created
-  // This installs all npm dependencies for the monorepo
-  "postCreateCommand": "npm ci",
+  // This installs all npm dependencies and sets up Firefox certificates
+  "postCreateCommand": "npm ci && setup-dev-certs.sh",
 
   // Use 'postStartCommand' to run commands each time the container starts
   // Ensures git hooks are set up (husky)

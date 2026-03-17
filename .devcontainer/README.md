@@ -98,8 +98,8 @@ The dev container is configured to run the Web Vault with HTTPS using custom TLS
 
 #### How It Works
 
-1. **Local Domain**: `vault.bitwarden.localhost` resolves to 127.0.0.1 via `/etc/hosts` and Docker `--add-host`
-2. **TLS Certificates**: Self-signed certificates for `vault.bitwarden.localhost`:
+1. **Local Domain**: `vault.qa.bitwarden.pw` resolves to 127.0.0.1 via `/etc/hosts` and Docker `--add-host`
+2. **TLS Certificates**: Self-signed certificates for `vault.qa.bitwarden.pw`:
    - Root CA: `/usr/local/share/ca-certificates/dev/rootCA.crt`
    - Vault certificate: `/usr/local/share/ca-certificates/dev/vault.crt`
    - Vault key: `/usr/local/share/ca-certificates/dev/vault.key`
@@ -117,7 +117,7 @@ The dev container is configured to run the Web Vault with HTTPS using custom TLS
 nx serve web
 ```
 
-Access the web vault at: `https://vault.bitwarden.localhost`
+Access the web vault at: `https://vault.qa.bitwarden.pw`
 
 #### Using Firefox in the Container
 
@@ -131,7 +131,7 @@ setup-dev-certs.sh
 firefox-dev
 
 # Or directly with a URL
-firefox-dev https://vault.bitwarden.localhost
+firefox-dev https://vault.qa.bitwarden.pw
 ```
 
 **Note**: When first accessing the site in Firefox, you'll need to accept the self-signed certificate exception since the Root CA is only trusted within the container's system store, not Firefox's certificate store.
@@ -219,7 +219,7 @@ The following ports are automatically forwarded:
 Development certificates are automatically generated during container build:
 
 - **Location**: `/usr/local/share/ca-certificates/dev/`
-- **Certificate**: `vault.crt` (for `vault.bitwarden.localhost`)
+- **Certificate**: `vault.crt` (for `vault.qa.bitwarden.pw`)
 - **Key**: `vault.key`
 - **Root CA**: `rootCA.crt`
 
@@ -232,10 +232,6 @@ Firefox-specific configuration includes:
 - **Profile directory**: `/home/node/.mozilla/firefox/dev-profile`
 - **Certificate script**: `setup-dev-certs.sh` - installs Root CA in Firefox's NSS database
 - **Launch script**: `firefox-dev` - launches Firefox with the dev profile
-
-### Docker-in-Docker
-
-The container includes Docker-in-Docker support for building container images or running Docker commands within the dev environment.
 
 ### GitHub CLI
 
@@ -264,7 +260,7 @@ The main configuration file (`devcontainer.json`) defines:
 - Port forwarding
 - Post-create commands
 - Environment variables
-- **Host entry** for `vault.bitwarden.localhost` → `127.0.0.1`
+- **Host entry** for `vault.qa.bitwarden.pw` → `127.0.0.1`
 
 ### Dockerfile
 
@@ -272,7 +268,7 @@ Custom Dockerfile (`Dockerfile`) extends the base TypeScript-Node image with:
 
 - Electron system dependencies
 - Firefox ESR and NSS tools for certificate management
-- **Self-signed certificate generation** for `vault.bitwarden.localhost`
+- **Self-signed certificate generation** for `vault.qa.bitwarden.pw`
 - Global npm packages (Angular CLI, Nx)
 
 ## Troubleshooting
@@ -320,7 +316,7 @@ sudo chown -R node:node /usr/local/share/ca-certificates/dev/
 
 ### Firefox Certificate Warnings
 
-If Firefox shows certificate warnings for `https://vault.bitwarden.localhost`:
+If Firefox shows certificate warnings for `https://vault.qa.bitwarden.pw`:
 
 1. Run the certificate setup script:
    ```bash
@@ -333,7 +329,7 @@ If Firefox shows certificate warnings for `https://vault.bitwarden.localhost`:
 
 If API calls are failing (404 errors):
 
-- Ensure you're accessing via `https://vault.bitwarden.localhost`
+- Ensure you're accessing via `https://vault.qa.bitwarden.pw`
 - The webpack dev server proxies `/api`, `/identity`, etc. to the QA environment
 - Check that `apps/web/config/local.json` has the correct QA proxy URLs
 

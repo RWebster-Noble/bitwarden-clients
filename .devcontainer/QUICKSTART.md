@@ -25,46 +25,13 @@ Wait for the build to complete. You'll see:
 <i> [webpack-dev-server] Loopback: https://localhost:443/
 ```
 
-### 2. Setup Firefox Certificates (First Time Only)
-
-In a new terminal:
+### 2. Launch Firefox
 
 ```bash
-setup-dev-certs.sh
+firefox-dev https://vault.qa.bitwarden.pw
 ```
 
-This installs the development Root CA into Firefox's certificate store.
-
-### 3. Launch Firefox
-
-```bash
-firefox-dev https://vault.bitwarden.localhost
-```
-
-Or open Firefox and navigate to: `https://vault.bitwarden.localhost`
-
-### 4. Accept Certificate Warning
-
-On first access, Firefox will show a certificate warning. Click **"Advanced"** → **"Accept the Risk and Continue"**.
-
-> **Note**: This is expected because we're using self-signed certificates for local development.
-
-## Common Commands
-
-| Command                                   | Description                         |
-| ----------------------------------------- | ----------------------------------- |
-| `nx serve web`                            | Start the web vault dev server      |
-| `nx serve web --configuration=commercial` | Start with commercial features      |
-| `firefox-dev`                             | Launch Firefox with dev profile     |
-| `firefox-dev <url>`                       | Launch Firefox and open URL         |
-| `setup-dev-certs.sh`                      | Install dev certificates in Firefox |
-
-## How It Works
-
-- **Local Domain**: `vault.bitwarden.localhost` resolves to 127.0.0.1
-- **HTTPS**: Self-signed TLS certificates for `vault.bitwarden.localhost`
-- **API Proxying**: Requests to `/api`, `/identity`, etc. are proxied to `*.qa.bitwarden.pw`
-- **Firefox**: Custom profile with dev certificates pre-installed
+Or open Firefox and navigate to: `https://vault.qa.bitwarden.pw`
 
 ## Troubleshooting
 
@@ -90,11 +57,54 @@ Then restart Firefox.
 
 The dev server proxies API requests to the QA environment. Ensure:
 
-- You're accessing via `https://vault.bitwarden.localhost` (not localhost)
+- You're accessing via `https://vault.qa.bitwarden.pw` (not localhost)
 - The proxy configuration in `apps/web/config/local.json` has correct QA URLs
+
+## Firefox Extension Development
+
+### Build the Firefox Extension
+
+```bash
+# Firefox with Manifest V3 (modern)
+nx build browser --configuration=firefox-dev
+
+# Firefox with Manifest V2 (older format)
+nx build browser --configuration=firefox-mv2-dev
+```
+
+**Build with watch mode (rebuilds on changes):**
+
+```bash
+# Manifest V3
+nx serve browser --configuration=firefox-dev
+
+# Manifest V2
+nx serve browser --configuration=firefox-mv2-dev
+```
+
+### Load in Firefox
+
+- Navigate to `about:debugging` in Firefox
+
+- Click **"This Firefox"**
+
+- Click **"Load Temporary Add-on..."**
+
+- Select the `manifest.json` file from:
+  - `dist/apps/browser/firefox-dev/manifest.json` (for MV3)
+  - OR `dist/apps/browser/firefox-mv2-dev/manifest.json` (for MV2)
+
+### Watch Mode (Auto-rebuild on Changes)
+
+```bash
+nx serve browser --configuration=firefox-dev
+```
+
+Then reload the extension in Firefox's `about:debugging` page after changes.
 
 ## Next Steps
 
 - See [README.md](README.md) for full dev container documentation
 - See [apps/web/README.md](../apps/web/README.md) for web vault specific docs
+- See [apps/browser/README.md](../apps/browser/README.md) for browser extension docs
 - Visit [contributing.bitwarden.com](https://contributing.bitwarden.com/) for comprehensive guides

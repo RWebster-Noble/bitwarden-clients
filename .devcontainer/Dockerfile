@@ -72,13 +72,13 @@ RUN openssl genrsa -out /usr/local/share/ca-certificates/dev/rootCA.key 4096 && 
     -sha256 -days 3650 -out /usr/local/share/ca-certificates/dev/rootCA.crt \
     -subj "/C=US/ST=Dev/L=Dev/O=Bitwarden Dev/CN=Bitwarden Dev Root CA"
 
-# Generate certificate for vault.bitwarden.localhost
+# Generate certificate for vault.qa.bitwarden.pw
 COPY <<CERTSCRIPT /tmp/gen-cert.sh
 #!/bin/bash
 cd /usr/local/share/ca-certificates/dev
 openssl genrsa -out vault.key 2048
-openssl req -new -key vault.key -out vault.csr -subj "/C=US/ST=Dev/L=Dev/O=Bitwarden Dev/CN=vault.bitwarden.localhost"
-openssl x509 -req -in vault.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out vault.crt -days 365 -sha256 -extfile <(printf "subjectAltName=DNS:vault.bitwarden.localhost,DNS:localhost,DNS:*.bitwarden.localhost")
+openssl req -new -key vault.key -out vault.csr -subj "/C=US/ST=Dev/L=Dev/O=Bitwarden Dev/CN=vault.qa.bitwarden.pw"
+openssl x509 -req -in vault.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out vault.crt -days 365 -sha256 -extfile <(printf "subjectAltName=DNS:vault.qa.bitwarden.pw,DNS:localhost")
 rm vault.csr
 CERTSCRIPT
 
