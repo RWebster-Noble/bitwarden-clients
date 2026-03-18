@@ -36,6 +36,7 @@ import {
   TwoFactorAuthWebAuthnComponentService,
   SsoComponentService,
   NewDeviceVerificationComponentService,
+  LoginViaWebAuthnComponentService,
 } from "@bitwarden/auth/angular";
 import {
   LockService,
@@ -180,6 +181,7 @@ import { ExtensionLoginComponentService } from "../../auth/popup/login/extension
 import { ExtensionSsoComponentService } from "../../auth/popup/login/extension-sso-component.service";
 import { ExtensionLogoutService } from "../../auth/popup/logout/extension-logout.service";
 import { ExtensionDeviceManagementComponentService } from "../../auth/services/extension-device-management-component.service";
+import { ExtensionLoginViaWebAuthnComponentService } from "../../auth/services/extension-login-via-webauthn-component.service";
 import { ExtensionTwoFactorAuthComponentService } from "../../auth/services/extension-two-factor-auth-component.service";
 import { ExtensionTwoFactorAuthDuoComponentService } from "../../auth/services/extension-two-factor-auth-duo-component.service";
 import { ExtensionTwoFactorAuthWebAuthnComponentService } from "../../auth/services/extension-two-factor-auth-webauthn-component.service";
@@ -606,6 +608,11 @@ const safeProviders: SafeProvider[] = [
     provide: TwoFactorAuthWebAuthnComponentService,
     useClass: ExtensionTwoFactorAuthWebAuthnComponentService,
     deps: [],
+  }),
+  safeProvider({
+    provide: LoginViaWebAuthnComponentService,
+    useClass: ExtensionLoginViaWebAuthnComponentService,
+    deps: [PlatformUtilsService, EnvironmentService],
   }),
   safeProvider({
     provide: TwoFactorAuthDuoComponentService,

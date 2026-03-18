@@ -22,9 +22,11 @@ import { BiometricsCommands } from "@bitwarden/key-management";
 // eslint-disable-next-line no-restricted-imports
 import {
   closeUnlockPopout,
+  openPasskeyLoginResultPopout,
   openSsoAuthResultPopout,
   openTwoFactorAuthWebAuthnPopout,
 } from "../auth/popup/utils/auth-popout-window";
+import { PasskeyLoginRelayService } from "../auth/services/passkey-login-relay.service";
 import { LockedVaultPendingNotificationsData } from "../autofill/background/abstractions/notification.background";
 import { AutofillService } from "../autofill/services/abstractions/autofill.service";
 import { BrowserApi } from "../platform/browser/browser-api";
@@ -39,6 +41,10 @@ export default class RuntimeBackground {
   private pageDetailsToAutoFill: any[] = [];
   private onInstalledReason: string = null;
   private lockedVaultPendingNotifications: LockedVaultPendingNotificationsData[] = [];
+  private pendingPasskeyLoginEcdhSession: {
+    privateKey: CryptoKey;
+    expiresAt: number;
+  } | null = null;
 
   constructor(
     private main: MainBackground,
@@ -55,6 +61,7 @@ export default class RuntimeBackground {
     private readonly lockService: LockService,
     private billingAccountProfileStateService: BillingAccountProfileStateService,
     private browserInitialInstallService: BrowserInitialInstallService,
+    private passkeyLoginRelayService: PasskeyLoginRelayService,
   ) {
     // onInstalled listener must be wired up before anything else, so we do it in the ctor
     chrome.runtime.onInstalled.addListener((details: any) => {
@@ -80,6 +87,7 @@ export default class RuntimeBackground {
         BiometricsCommands.GetBiometricsStatusForUser,
         BiometricsCommands.CanEnableBiometricUnlock,
         "getUserPremiumStatus",
+        "initiatePasskeyLoginRelay",
       ];
 
       if (messagesWithResponse.includes(msg.command)) {
@@ -213,6 +221,9 @@ export default class RuntimeBackground {
         );
         return result;
       }
+      case "initiatePasskeyLoginRelay": {
+        return await this.initiatePasskeyLoginRelay();
+      }
     }
   }
 
@@ -344,6 +355,14 @@ export default class RuntimeBackground {
         }
 
         await openTwoFactorAuthWebAuthnPopout(msg);
+        break;
+      }
+      case "passkeyLoginResult": {
+        if (!(await this.isValidVaultReferrer(msg.referrer))) {
+          return;
+        }
+
+        await this.handlePasskeyLoginResult(msg);
         break;
       }
       case "reloadPopup":
@@ -533,5 +552,202 @@ export default class RuntimeBackground {
 
     // Give the popup a buffer to complete opening
     setTimeout(announceToAllTabs, 100);
+  }
+
+  /**
+   * Handles the passkey login result message from the connector page.
+   * Decrypts the PRF output using ECDH and opens the result popout.
+   */
+  private async handlePasskeyLoginResult(msg: {
+    token: string;
+    assertionData: string;
+    encryptedPrfOutput?: { ciphertext: string; iv: string } | null;
+    connectorPublicKey?: string | null;
+    referrer: string;
+  }): Promise<void> {
+    try {
+      this.logService.info("[PasskeyLogin] handlePasskeyLoginResult called");
+
+      // Check if there's a pending ECDH session and it's not expired
+      if (
+        !this.pendingPasskeyLoginEcdhSession ||
+        Date.now() > this.pendingPasskeyLoginEcdhSession.expiresAt
+      ) {
+        this.logService.error("[PasskeyLogin] No pending passkey login session or session expired");
+        return;
+      }
+
+      this.logService.info("[PasskeyLogin] ECDH session valid, processing result...");
+
+      let prfOutput: ArrayBuffer | null = null;
+
+      // Decrypt PRF output if present
+      if (msg.encryptedPrfOutput && msg.connectorPublicKey) {
+        this.logService.info("[PasskeyLogin] Decrypting PRF output...");
+        prfOutput = await this.decryptPrfOutput(
+          msg.encryptedPrfOutput.ciphertext,
+          msg.encryptedPrfOutput.iv,
+          msg.connectorPublicKey,
+        );
+        this.logService.info("[PasskeyLogin] PRF output decrypted successfully");
+      } else {
+        this.logService.info("[PasskeyLogin] No encrypted PRF output to decrypt");
+      }
+
+      this.logService.info("[PasskeyLogin] Storing result in relay service...");
+
+      // Store the result in the relay service for the popout to consume
+      await this.passkeyLoginRelayService.storeResult({
+        token: msg.token,
+        assertionData: msg.assertionData,
+        prfOutput,
+      });
+
+      // Clear the ECDH session (private key is discarded)
+      this.pendingPasskeyLoginEcdhSession = null;
+
+      this.logService.info("[PasskeyLogin] Opening result popout...");
+      // Open the result popout
+      await openPasskeyLoginResultPopout();
+      this.logService.info("[PasskeyLogin] Result popout opened successfully");
+    } catch (error) {
+      this.logService.error("[PasskeyLogin] Error handling passkey login result", error);
+    }
+  }
+
+  /**
+   * Decrypts the PRF output using ECDH key exchange.
+   */
+  private async decryptPrfOutput(
+    ciphertextB64: string,
+    ivB64: string,
+    connectorPublicKeyB64: string,
+  ): Promise<ArrayBuffer> {
+    if (!this.pendingPasskeyLoginEcdhSession) {
+      throw new Error("No pending ECDH session");
+    }
+
+    // Convert base64url to ArrayBuffer
+    const ciphertext = this.base64urlToBuffer(ciphertextB64);
+    const iv = this.base64urlToBuffer(ivB64);
+    const connectorPublicKeyBuffer = this.base64urlToBuffer(connectorPublicKeyB64);
+
+    // Import connector's public key
+    const connectorPublicKey = await crypto.subtle.importKey(
+      "raw",
+      connectorPublicKeyBuffer,
+      {
+        name: "ECDH",
+        namedCurve: "P-256",
+      },
+      false,
+      [],
+    );
+
+    // Derive shared secret using ECDH
+    const sharedSecret = await crypto.subtle.deriveBits(
+      {
+        name: "ECDH",
+        public: connectorPublicKey,
+      },
+      this.pendingPasskeyLoginEcdhSession.privateKey,
+      256,
+    );
+
+    // Derive AES-GCM key from shared secret using HKDF
+    const aesKey = await this.deriveAesKeyFromSharedSecret(sharedSecret);
+
+    // Decrypt the PRF output
+    const decrypted = await crypto.subtle.decrypt(
+      {
+        name: "AES-GCM",
+        iv: new Uint8Array(iv),
+      },
+      aesKey,
+      ciphertext,
+    );
+
+    return decrypted;
+  }
+
+  /**
+   * Derive AES-GCM key from shared secret using HKDF.
+   */
+  private async deriveAesKeyFromSharedSecret(sharedSecret: ArrayBuffer): Promise<CryptoKey> {
+    const keyMaterial = await crypto.subtle.importKey("raw", sharedSecret, "HKDF", false, [
+      "deriveKey",
+    ]);
+
+    return await crypto.subtle.deriveKey(
+      {
+        name: "HKDF",
+        salt: new Uint8Array(0), // Empty salt - the shared secret is already random
+        info: new TextEncoder().encode("passkey-login-prf"),
+        hash: "SHA-256",
+      },
+      keyMaterial,
+      {
+        name: "AES-GCM",
+        length: 256,
+      },
+      false,
+      ["decrypt"],
+    );
+  }
+
+  /**
+   * Convert base64url string to ArrayBuffer.
+   */
+  private base64urlToBuffer(base64url: string): ArrayBuffer {
+    const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
+    const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+    const padded = base64 + padding;
+    const binary = atob(padded);
+    const buffer = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      buffer[i] = binary.charCodeAt(i);
+    }
+    return buffer.buffer;
+  }
+
+  /**
+   * Initiates a passkey login relay session by generating an ephemeral ECDH key pair.
+   * Called when the user clicks "Log in with passkey" on Firefox.
+   *
+   * @returns The base64url-encoded public key to pass to the connector page
+   */
+  async initiatePasskeyLoginRelay(): Promise<string> {
+    // Generate ephemeral ECDH key pair (P-256)
+    const keyPair = await crypto.subtle.generateKey(
+      {
+        name: "ECDH",
+        namedCurve: "P-256",
+      },
+      true, // extractable - we need to export the public key
+      ["deriveBits"],
+    );
+
+    // Store the private key with 5-minute expiry
+    this.pendingPasskeyLoginEcdhSession = {
+      privateKey: keyPair.privateKey,
+      expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
+    };
+
+    // Export and return the public key
+    const publicKeyBuffer = await crypto.subtle.exportKey("raw", keyPair.publicKey);
+    return this.bufferToBase64url(publicKeyBuffer);
+  }
+
+  /**
+   * Convert ArrayBuffer to base64url string.
+   */
+  private bufferToBase64url(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = btoa(binary);
+    return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
   }
 }
