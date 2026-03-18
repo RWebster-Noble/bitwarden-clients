@@ -208,6 +208,61 @@ and validating the `passkeyLoginResult` message.
 
 ---
 
+## Critical Implementation Issue: Data Format Mismatch
+
+During troubleshooting, we discovered a **critical data format issue** that causes the login
+to fail with an error.
+
+### The Problem
+
+The connector page was using `buildDataString()` from `common-webauthn.ts` to serialize the
+credential assertion. However, this format does **NOT** match what
+`WebAuthnLoginAssertionResponseRequest` expects when deserializing in the extension's
+`LoginWithPasskeyResultComponent`.
+
+**Differences:**
+
+| Field                     | `buildDataString()` Output       | `WebAuthnLoginAssertionResponseRequest` Expects |
+| ------------------------- | -------------------------------- | ----------------------------------------------- |
+| `response.clientDataJSON` | `clientDataJson` (lowercase "j") | `clientDataJSON` (uppercase "JSON")             |
+| `response.userHandle`     | **Missing entirely**             | **Required**                                    |
+
+When the extension tries to deserialize using `Object.assign()` with
+`WebAuthnLoginAssertionResponseRequest.prototype`, the constructor accesses
+`credential.response.userHandle` which is `undefined`, causing
+`Utils.fromBufferToUrlB64(undefined)` to fail and throw an error.
+
+### The Fix
+
+Replace `buildDataString()` in the connector with a custom serialization that matches the
+expected format exactly:
+
+```typescript
+function serializeAssertionData(credential: PublicKeyCredential): string {
+  const response = credential.response as AuthenticatorAssertionResponse;
+
+  const data = {
+    id: credential.id,
+    rawId: bufferToBase64url(credential.rawId),
+    type: credential.type,
+    extensions: {}, // Empty - PRF must not go to server
+    response: {
+      authenticatorData: bufferToBase64url(response.authenticatorData),
+      clientDataJSON: bufferToBase64url(response.clientDataJSON), // Note: uppercase JSON
+      signature: bufferToBase64url(response.signature),
+      userHandle: response.userHandle ? bufferToBase64url(response.userHandle) : null,
+    },
+  };
+
+  return JSON.stringify(data);
+}
+```
+
+**Important**: The `bufferToBase64url()` helper function must match the one already defined
+in the connector file (converts ArrayBuffer to base64url string).
+
+---
+
 ## Detailed Implementation Plan
 
 ### Change 1: New Web Vault Connector Page
@@ -221,7 +276,7 @@ must handle the **entire WebAuthn ceremony from scratch**: fetch assertion optio
 because that page only handles a pre-baked challenge and posts back only a token string (no
 server token relay, no PRF).
 
-**URL parameters received**:
+**URL fragment parameters received**:
 
 - `extensionPublicKey`: base64url-encoded ephemeral ECDH public key from the extension
   background (used to encrypt PRF output).
@@ -230,17 +285,18 @@ server token relay, no PRF).
 **What this page must do**:
 
 ```typescript
-// 1. Parse URL parameters
-const extensionPublicKeyB64 = getQsParam("extensionPublicKey");
+// 1. Parse URL fragment (avoids sending key to server)
+const fragment = window.location.hash.slice(1); // remove leading #
+const params = new URLSearchParams(fragment);
+const extensionPublicKeyB64 = params.get("extensionPublicKey");
 
 // 2. Fetch assertion options from the server (unauthenticated endpoint)
 const response = await fetch(`${apiOrigin}/webauthn/assertion-options`, { method: "POST" });
 const { options, token } = await response.json();
 
-// 3. Compute the PRF salt (must match what the extension uses for key derivation)
-//    This is derived the same way as WebAuthnLoginPrfKeyService.getLoginWithPrfSalt()
-//    — a fixed well-known salt or a salt the extension encodes in the URL.
-const prfSalt = derivePrfSalt(); // or decode from URL param
+// 3. Get the PRF salt (must match WebAuthnLoginPrfKeyService.getLoginWithPrfSalt)
+//    The salt is the string "passwordless-login" hashed with SHA-256
+const prfSalt = await getLoginWithPrfSalt();
 
 // 4. Call credentials.get() with PRF extension
 const credential = await navigator.credentials.get({
@@ -256,7 +312,9 @@ const credential = await navigator.credentials.get({
 const prfOutput = credential.getClientExtensionResults()?.prf?.results?.first ?? null;
 
 // 6. Serialize the assertion (without PRF — PRF must not go to the server)
-const assertionData = buildDataString(credential); // reuse common-webauthn.ts helper
+// IMPORTANT: The assertion data format MUST match WebAuthnLoginAssertionResponseRequest
+// See "Data Format Critical Issue" section below for details
+const assertionData = serializeAssertionData(credential);
 
 // 7. Encrypt the PRF output with the extension's ECDH public key
 let encryptedPrfOutput = null;
@@ -357,24 +415,32 @@ are separate browser contexts. A dedicated service holds the in-memory bridge st
 
 ```typescript
 abstract class PasskeyLoginRelayService {
-  /** Stores decrypted relay result in memory (called from background after decryption). */
+  /** Stores decrypted relay result in chrome.storage.local (called from background after decryption). */
   abstract storeResult(result: {
     token: string;
     assertionData: string;
     prfOutput: ArrayBuffer | null;
-  }): void;
+  }): Promise<void>;
 
   /** Retrieves and clears the relay result (called once from the result popout). */
-  abstract consumeResult(): {
+  abstract consumeResult(): Promise<{
     token: string;
     assertionData: string;
     prfOutput: ArrayBuffer | null;
-  } | null;
+  } | null>;
 }
 ```
 
-The implementation is a simple singleton holding the state in the background service worker
-memory. `consumeResult()` clears the stored data after returning it (single-use).
+**Important Implementation Detail**: The service uses `chrome.storage.local` instead of
+in-memory storage because the background script (service worker) and popup run in separate
+browser contexts and cannot share JavaScript memory. The storage is keyed by
+`"passkeyLoginRelayResult"` and includes a timestamp for expiry checking.
+
+**Consume Result Behavior**:
+
+1. First checks storage immediately (result is usually already there since background stores it before opening popup)
+2. Only waits for storage change event if result not found
+3. Clears the stored data after returning it (single-use)
 
 ---
 
@@ -562,11 +628,10 @@ export class ExtensionLoginViaWebAuthnComponentService implements LoginViaWebAut
     const extensionPublicKey = await this.messagingService.sendWithResponse(
       "initiatePasskeyLoginRelay",
     );
-    // 2. Open the connector page — it handles everything from here
+    // 2. Open the connector page with public key in fragment (not sent to server)
     const env = await firstValueFrom(this.environmentService.environment$);
-    const params = new URLSearchParams({ extensionPublicKey });
     this.platformUtilsService.launchUri(
-      `${env.getWebVaultUrl()}/passkey-login-connector.html?${params}`,
+      `${env.getWebVaultUrl()}/passkey-login-connector.html#extensionPublicKey=${encodeURIComponent(extensionPublicKey)}`,
     );
   }
 }
@@ -677,7 +742,7 @@ Firefox Extension Popup
   │
   │  3. platformUtilsService.launchUri(
   │       vault.bitwarden.com/passkey-login-connector.html
-  │       ?extensionPublicKey=<base64url>
+  │       #extensionPublicKey=<base64url>
   │     )
   │
   │  currentState = "waiting" (shows loading UI)
@@ -685,7 +750,7 @@ Firefox Extension Popup
   ↓
 Browser opens new tab: vault.bitwarden.com/passkey-login-connector.html
   │
-  │  4. Parse URL params → extensionPublicKey
+  │  4. Parse URL fragment → extensionPublicKey
   │
   │  5. POST /webauthn/assertion-options  ← UNAUTHENTICATED
   │     ← { options: { challenge, allowCredentials, ... }, token: "server-token" }
@@ -813,7 +878,7 @@ without the ECDH encryption complexity.
 - Steps 10–14 in the connector (ECDH + encryption) are omitted
 - Steps 20–22 in the background (ECDH + decryption) are omitted
 - `prfOutput` is always `null`; `prfKey` is always `undefined` in `logInWithExternalAssertion()`
-- No `extensionPublicKey` URL parameter needed
+- No `extensionPublicKey` URL fragment needed
 
 ### Phase 2 (Full PRF support)
 
@@ -844,3 +909,62 @@ vault decryption on Firefox — equivalent to what Chromium users already have.
    not a hardcoded `vault.bitwarden.com`. The extension encodes the web vault URL as a URL
    parameter, OR the connector page reads it from the API base URL already configured in the
    extension environment (which is what the existing 2FA fallback does via `webVaultUrl`).
+
+---
+
+## Implementation Lessons Learned
+
+### 1. PRF Salt Must Match Exactly
+
+The PRF salt is derived from the string `"passwordless-login"` hashed with SHA-256. Both the
+connector page and the extension must use the exact same salt derivation:
+
+```typescript
+// In connector page
+const encoder = new TextEncoder();
+const data = encoder.encode("passwordless-login");
+const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+const prfSalt = new Uint8Array(hashBuffer);
+```
+
+If the salts don't match, the derived encryption keys will be completely different, and
+vault decryption will fail with "The decryption operation failed" errors.
+
+### 2. Cross-Context Storage for Background/Popup Communication
+
+The background script (service worker) and popup run in separate JavaScript contexts and
+cannot share in-memory state. The `PasskeyLoginRelayService` must use `chrome.storage.local`
+instead of simple in-memory variables.
+
+**Key insight**: Check storage immediately on popup open, don't wait for events. The
+background stores the result before opening the popup, so it's usually already there.
+
+### 3. Data Format Case Sensitivity
+
+The `WebAuthnLoginAssertionResponseRequest` constructor is case-sensitive:
+
+- Expects `clientDataJSON` (uppercase JSON)
+- `buildDataString()` outputs `clientDataJson` (lowercase)
+
+Also requires `userHandle` field which `buildDataString()` omits. Use a custom
+`serializeAssertionData()` function instead.
+
+### 4. Dependency Injection for Background Services
+
+When adding a new service to `RuntimeBackground`, you must:
+
+1. Import the service in `main.background.ts`
+2. Instantiate it in the `MainBackground` constructor
+3. Pass it to `RuntimeBackground` constructor
+4. Add it to `RuntimeBackground`'s constructor parameters
+
+Forgetting any of these steps results in `undefined` service errors at runtime.
+
+### 5. Firefox Extension Debugging
+
+To see console logs from the extension:
+
+1. Go to `about:debugging` → "This Firefox"
+2. Find Bitwarden extension → Click "Inspect"
+3. The DevTools window shows background script logs
+4. For popup logs: click the popup icon in the DevTools toolbar
