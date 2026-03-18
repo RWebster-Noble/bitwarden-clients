@@ -17,6 +17,8 @@ const windowMessageHandlers: ContentMessageWindowEventHandlers = {
     handleAuthResultMessage(data, referrer),
   webAuthnResult: ({ data, referrer }: { data: any; referrer: string }) =>
     handleWebAuthnResultMessage(data, referrer),
+  passkeyLoginResult: ({ data, referrer }: { data: any; referrer: string }) =>
+    handlePasskeyLoginResultMessage(data, referrer),
   [VaultMessages.checkBwInstalled]: () => handleExtensionInstallCheck(),
   duoResult: ({ data, referrer }: { data: any; referrer: string }) =>
     handleDuoResultMessage(data, referrer),
@@ -76,6 +78,24 @@ async function handleDuoResultMessage(data: ContentMessageWindowData, referrer: 
 function handleWebAuthnResultMessage(data: ContentMessageWindowData, referrer: string) {
   const { command, remember } = data;
   sendExtensionRuntimeMessage({ command, data: data.data, remember, referrer });
+}
+
+/**
+ * Handles the passkey login result message from the window.
+ *
+ * @param data - Data from the window message
+ * @param referrer - The referrer of the window
+ */
+function handlePasskeyLoginResultMessage(data: ContentMessageWindowData, referrer: string) {
+  const { command, token, assertionData, encryptedPrfOutput, connectorPublicKey } = data;
+  sendExtensionRuntimeMessage({
+    command,
+    token,
+    assertionData,
+    encryptedPrfOutput,
+    connectorPublicKey,
+    referrer,
+  });
 }
 
 /** @deprecated use {@link handleOpenBrowserExtensionToUrlMessage} */

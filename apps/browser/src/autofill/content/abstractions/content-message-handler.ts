@@ -8,6 +8,10 @@ type ContentMessageWindowData = {
   data?: string;
   remember?: boolean;
   url?: ExtensionPageUrls;
+  token?: string;
+  assertionData?: string;
+  encryptedPrfOutput?: { ciphertext: string; iv: string } | null;
+  connectorPublicKey?: string | null;
 };
 type ContentMessageWindowEventParams = {
   data: ContentMessageWindowData;

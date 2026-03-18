@@ -1877,6 +1877,9 @@
   "useDifferentLoginMethod": {
     "message": "Use different login method"
   },
+  "authenticateWithPasskey": {
+    "message": "Authenticate with passkey"
+  },
   "logInWithPasskey": {
     "message": "Log in with passkey"
   },
