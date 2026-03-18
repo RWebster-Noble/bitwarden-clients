@@ -1,7 +1,7 @@
 {
   "devFlags": {
     "managedEnvironment": {
-      "base": "https://localhost:8080"
+      "base": "https://vault.qa.bitwarden.pw"
     },
     "skipWelcomeOnInstall": true,
     "configRetrievalIntervalMs": 5000
