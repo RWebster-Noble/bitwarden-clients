@@ -1,6 +1,3 @@
-import { firstValueFrom, Subject } from "rxjs";
-import { take, timeout } from "rxjs/operators";
-
 import { LogService } from "@bitwarden/common/platform/abstractions/log.service";
 
 import { BrowserApi } from "../../platform/browser/browser-api";
@@ -11,9 +8,8 @@ import { BrowserApi } from "../../platform/browser/browser-api";
  */
 export class PasskeyLoginRelayService {
   private readonly STORAGE_KEY = "passkeyLoginRelayResult";
-  private readonly TIMEOUT_MS = 30000; // 30 seconds
-  private resultReceived$ = new Subject<void>();
   private storageChangeListener: ((changes: any, areaName: string) => void) | null = null;
+  private resolveStorageChange: (() => void) | null = null;
 
   constructor(private logService: LogService) {
     this.setupStorageListener();
@@ -24,16 +20,10 @@ export class PasskeyLoginRelayService {
       this.storageChangeListener = (changes, areaName) => {
         if (areaName === "local" && changes[this.STORAGE_KEY]) {
           this.logService.info("[PasskeyLoginRelay] Storage change detected");
-          this.resultReceived$.next();
+          this.resolveStorageChange?.();
         }
       };
       BrowserApi.addListener(chrome.storage.onChanged, this.storageChangeListener);
-    }
-  }
-
-  destroy(): void {
-    if (this.storageChangeListener && chrome.storage && chrome.storage.onChanged) {
-      BrowserApi.removeListener(chrome.storage.onChanged, this.storageChangeListener);
     }
   }
 
@@ -83,12 +73,7 @@ export class PasskeyLoginRelayService {
         "[PasskeyLoginRelay] Result not in storage yet, waiting for storage change...",
       );
       try {
-        await firstValueFrom(
-          this.resultReceived$.pipe(
-            take(1),
-            timeout(5000), // 5 seconds is plenty for the background to store the result
-          ),
-        );
+        await this.waitForStorageChange(5000); // 5 seconds timeout
 
         // Try again after receiving the event
         const dataAfterEvent = await chrome.storage.local.get(this.STORAGE_KEY);
@@ -118,6 +103,24 @@ export class PasskeyLoginRelayService {
 
     this.logService.info("[PasskeyLoginRelay] Result consumed successfully");
     return result;
+  }
+
+  /**
+   * Waits for the storage change event with a timeout.
+   */
+  private waitForStorageChange(timeoutMs: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        this.resolveStorageChange = null;
+        reject(new Error("Timeout"));
+      }, timeoutMs);
+
+      this.resolveStorageChange = () => {
+        clearTimeout(timeoutId);
+        this.resolveStorageChange = null;
+        resolve();
+      };
+    });
   }
 
   /**

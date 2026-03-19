@@ -1,3 +1,5 @@
+// eslint-disable-next-line no-restricted-imports -- This is an Angular component service
+import { Injectable } from "@angular/core";
 import { firstValueFrom } from "rxjs";
 
 import { LoginViaWebAuthnComponentService } from "@bitwarden/auth/angular";
@@ -8,6 +10,7 @@ import { PlatformUtilsService } from "@bitwarden/common/platform/abstractions/pl
  * Browser extension implementation of LoginViaWebAuthnComponentService.
  * Handles Firefox passkey login via the web vault connector relay mechanism.
  */
+@Injectable()
 export class ExtensionLoginViaWebAuthnComponentService implements LoginViaWebAuthnComponentService {
   constructor(
     private platformUtilsService: PlatformUtilsService,
