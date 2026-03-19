@@ -65,6 +65,7 @@ The dev server proxies API requests to the QA environment. Ensure:
 ### Build the Firefox Extension
 
 ```bash
+export CI=true
 # Firefox with Manifest V3 (modern)
 nx build browser --configuration=firefox-dev
 
@@ -75,6 +76,8 @@ nx build browser --configuration=firefox-mv2-dev
 **Build with watch mode (rebuilds on changes):**
 
 ```bash
+export CI=true
+
 # Manifest V3
 nx serve browser --configuration=firefox-dev
 

@@ -25,7 +25,9 @@ import {
 } from "@bitwarden/components";
 import { KeyService } from "@bitwarden/key-management";
 
+import { BrowserApi } from "../../../platform/browser/browser-api";
 import { PasskeyLoginRelayService } from "../../services/passkey-login-relay.service";
+import { closePasskeyLoginResultPopout } from "../utils/auth-popout-window";
 
 export type State = "loggingIn" | "loginFailed";
 
@@ -181,10 +183,17 @@ export class LoginWithPasskeyResultComponent implements OnInit {
         await this.loginSuccessHandlerService.run(authResult.userId, null);
       }
 
-      // Navigate to vault
-      this.logService.info("[PasskeyLogin] Navigating to vault...");
-      await this.router.navigate([this.successRoute]);
-      this.logService.info("[PasskeyLogin] Navigation complete");
+      // Reload any other open extension windows (e.g., popped-out sidebar) so they
+      // re-evaluate auth guards and navigate to the vault. This matches the 2FA flow
+      // where reloadOpenWindows() is called after login to update stale windows.
+      this.logService.info("[PasskeyLogin] Reloading open windows...");
+      BrowserApi.reloadOpenWindows(true); // true = exclude current window
+
+      // Close this popout — the user will re-open the extension to see the vault.
+      // This matches the 2FA flow where closeSingleActionPopouts() closes the
+      // WebAuthn popout after the 2FA token is submitted.
+      this.logService.info("[PasskeyLogin] Login complete, closing result popout...");
+      await closePasskeyLoginResultPopout();
     } catch (error) {
       this.logService.error("[PasskeyLogin] Error in completeLogin:", error);
       if (error instanceof ErrorResponse) {

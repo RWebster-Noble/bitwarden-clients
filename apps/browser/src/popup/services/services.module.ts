@@ -195,6 +195,7 @@ import { ExtensionSsoComponentService } from "../../auth/popup/login/extension-s
 import { ExtensionLogoutService } from "../../auth/popup/logout/extension-logout.service";
 import { ExtensionDeviceManagementComponentService } from "../../auth/services/extension-device-management-component.service";
 import { ExtensionLoginViaWebAuthnComponentService } from "../../auth/services/extension-login-via-webauthn-component.service";
+import { PasskeyLoginRelayService } from "../../auth/services/passkey-login-relay.service";
 import { ExtensionTwoFactorAuthComponentService } from "../../auth/services/extension-two-factor-auth-component.service";
 import { ExtensionTwoFactorAuthDuoComponentService } from "../../auth/services/extension-two-factor-auth-duo-component.service";
 import { ExtensionTwoFactorAuthWebAuthnComponentService } from "../../auth/services/extension-two-factor-auth-webauthn-component.service";
@@ -848,6 +849,11 @@ const safeProviders: SafeProvider[] = [
     provide: AUTO_CONFIRM_NUDGE_SERVICE as SafeInjectionToken<AutoConfirmNudgeService>,
     useClass: AutoConfirmNudgeService,
     deps: [StateProvider, AutomaticUserConfirmationService],
+  }),
+  safeProvider({
+    provide: PasskeyLoginRelayService,
+    useFactory: (logService: LogService) => new PasskeyLoginRelayService(logService),
+    deps: [LogService],
   }),
 ];
 

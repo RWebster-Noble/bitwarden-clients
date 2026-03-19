@@ -1877,6 +1877,15 @@
   "useDifferentLoginMethod": {
     "message": "Use different login method"
   },
+  "followTheStepsBelowToFinishLoggingInWithPasskey": {
+    "message": "Follow the steps below to finish logging in with passkey"
+  },
+  "passkeyLoginSuccess": {
+    "message": "Passkey login successful"
+  },
+  "useADifferentLogInMethod": {
+    "message": "Use a different log in method"
+  },
   "authenticateWithPasskey": {
     "message": "Authenticate with passkey"
   },
