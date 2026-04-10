@@ -246,7 +246,7 @@ async function performUnlockWebAuthn(): Promise<PublicKeyCredential> {
       allowCredentials,
       userVerification: "preferred",
       extensions: {
-        prf: { eval: { first: prfSalt.buffer } },
+        prf: { eval: { first: prfSalt.buffer as ArrayBuffer } },
       },
     },
   })) as PublicKeyCredential;
@@ -269,7 +269,7 @@ async function performLoginWebAuthn(
     publicKey: {
       ...publicKeyOptions,
       extensions: {
-        prf: { eval: { first: prfSalt.buffer } },
+        prf: { eval: { first: prfSalt.buffer as ArrayBuffer } },
       },
     },
   })) as PublicKeyCredential;
@@ -403,7 +403,7 @@ async function encryptPrfWithEcdh(
 
   return {
     ciphertext: bufferToBase64url(ciphertext),
-    iv: bufferToBase64url(iv),
+    iv: bufferToBase64url(iv.buffer as ArrayBuffer),
     connectorPublicKey: bufferToBase64url(connectorPublicKeyBuffer),
   };
 }
