@@ -8,6 +8,8 @@ let locale: string = null;
 let localeService: TranslationService = null;
 let extensionPublicKeyB64: string = null;
 let sentSuccess = false;
+let mode: "login" | "unlock" = "login";
+let unlockCredentials: { id: string; transports: string[] }[] | null = null;
 
 // PRF salt for login - must match WebAuthnLoginPrfKeyService.getLoginWithPrfSalt()
 // The salt is the string "passwordless-login" hashed with SHA-256
@@ -44,6 +46,24 @@ function parseParameters() {
     return;
   }
 
+  // Parse mode (login or unlock)
+  const modeParam = params.get("mode");
+  if (modeParam === "unlock") {
+    mode = "unlock";
+    const credentialsParam = params.get("credentials");
+    if (credentialsParam) {
+      try {
+        unlockCredentials = JSON.parse(decodeURIComponent(credentialsParam));
+      } catch {
+        error("Invalid credentials format.");
+        return;
+      }
+    } else {
+      error("No credentials provided for unlock mode.");
+      return;
+    }
+  }
+
   locale = getQsParam("locale") ?? "en";
   parsed = true;
 }
@@ -66,11 +86,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   const titleForSmallerScreens = document.getElementById("title-smaller-screens");
   const titleForLargerScreens = document.getElementById("title-larger-screens");
 
-  titleForSmallerScreens.innerText = localeService.t("logInWithPasskey");
-  titleForLargerScreens.innerText = localeService.t("logInWithPasskey");
+  if (mode === "unlock") {
+    titleForSmallerScreens.innerText = localeService.t("unlockWithPasskey");
+    titleForLargerScreens.innerText = localeService.t("unlockWithPasskey");
+  } else {
+    titleForSmallerScreens.innerText = localeService.t("logInWithPasskey");
+    titleForLargerScreens.innerText = localeService.t("logInWithPasskey");
+  }
 
   const subtitle = document.getElementById("subtitle");
-  subtitle.innerText = localeService.t("followTheStepsBelowToFinishLoggingInWithPasskey");
+  if (mode === "unlock") {
+    subtitle.innerText = localeService.t("followTheStepsBelowToFinishUnlockingWithPasskey");
+  } else {
+    subtitle.innerText = localeService.t("followTheStepsBelowToFinishLoggingInWithPasskey");
+  }
 
   // Auto-start if user has already clicked the button previously
   const autoStart = getQsParam("autoStart");
@@ -102,55 +131,49 @@ function start() {
 
 async function initPasskeyLogin() {
   try {
-    // 1. Fetch assertion options from the server (unauthenticated endpoint)
-    // The identity service is typically at /identity relative to the web vault origin
-    const apiOrigin = window.location.origin;
-    const response = await fetch(`${apiOrigin}/identity/accounts/webauthn/assertion-options`, {
-      method: "GET",
-    });
+    let credential: PublicKeyCredential;
+    let token: string | null = null;
+    let prfOutput: ArrayBuffer | null = null;
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch assertion options: ${response.status}`);
+    if (mode === "unlock") {
+      // Unlock mode: Use provided credentials directly
+      credential = await performUnlockWebAuthn();
+      if (!credential) {
+        error(localeService.t("passkeyAuthenticationFailed"));
+        return;
+      }
+      prfOutput = (credential.getClientExtensionResults() as any)?.prf?.results?.first ?? null;
+    } else {
+      // Login mode: Fetch assertion options from the server
+      const apiOrigin = window.location.origin;
+      const response = await fetch(`${apiOrigin}/identity/accounts/webauthn/assertion-options`, {
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch assertion options: ${response.status}`);
+      }
+
+      const { options, token: serverToken } = await response.json();
+      token = serverToken;
+
+      // Parse the assertion options and perform WebAuthn
+      const publicKeyOptions = parseAssertionOptions(options);
+      credential = await performLoginWebAuthn(publicKeyOptions);
+
+      if (!credential) {
+        error(localeService.t("passkeyAuthenticationFailed"));
+        return;
+      }
+
+      prfOutput = (credential.getClientExtensionResults() as any)?.prf?.results?.first ?? null;
     }
-
-    const { options, token } = await response.json();
-
-    // 2. Parse the assertion options
-    const publicKeyOptions = parseAssertionOptions(options);
-
-    // 3. Get the PRF salt (must match WebAuthnLoginPrfKeyService.getLoginWithPrfSalt)
-    const prfSalt = await getLoginWithPrfSalt();
-
-    // 4. Call credentials.get() with PRF extension
-    const credential = (await navigator.credentials.get({
-      publicKey: {
-        ...publicKeyOptions,
-        extensions: {
-          prf: { eval: { first: prfSalt.buffer } },
-        },
-      },
-    })) as PublicKeyCredential;
 
     if (sentSuccess) {
       return;
     }
 
-    if (!credential) {
-      error(localeService.t("passkeyAuthenticationFailed"));
-      return;
-    }
-
-    // 5. Extract PRF output (raw bytes)
-    // TODO: Remove `any` when typescript typings add support for PRF
-    const prfOutput = (credential.getClientExtensionResults() as any)?.prf?.results?.first ?? null;
-
-    // 6. Serialize the assertion (without PRF - PRF must not go to the server)
-    // IMPORTANT: The assertion data format MUST match WebAuthnLoginAssertionResponseRequest
-    // The buildDataString() function uses lowercase 'clientDataJson' but the class expects 'clientDataJSON'
-    // Also, buildDataString() is missing the required 'userHandle' field
-    const assertionData = serializeAssertionData(credential);
-
-    // 7. Encrypt the PRF output with the extension's ECDH public key if present
+    // Encrypt the PRF output with the extension's ECDH public key if present
     let encryptedPrfOutput = null;
     let connectorPublicKeyB64 = null;
     if (prfOutput && extensionPublicKeyB64) {
@@ -162,23 +185,96 @@ async function initPasskeyLogin() {
       connectorPublicKeyB64 = encryptionResult.connectorPublicKey;
     }
 
-    // 8. Post result back to extension via content script
-    window.postMessage(
-      {
-        command: "passkeyLoginResult",
-        token, // server's challenge token (stateless)
-        assertionData, // JSON credential assertion (no PRF!)
-        encryptedPrfOutput, // { ciphertext: base64, iv: base64 } | null
-        connectorPublicKey: connectorPublicKeyB64, // extension uses this to decrypt
-      },
-      "*",
-    );
-
-    sentSuccess = true;
-    success(localeService.t("passkeyLoginSuccess"));
+    // Post result back to extension via content script
+    if (mode === "unlock") {
+      // Unlock mode: Send credentialId and encrypted PRF output
+      window.postMessage(
+        {
+          command: "passkeyUnlockResult",
+          credentialId: credential.id,
+          encryptedPrfOutput,
+          connectorPublicKey: connectorPublicKeyB64,
+        },
+        "*",
+      );
+      sentSuccess = true;
+      success(localeService.t("passkeyUnlockSuccess"));
+    } else {
+      // Login mode: Send full assertion data
+      const assertionData = serializeAssertionData(credential);
+      window.postMessage(
+        {
+          command: "passkeyLoginResult",
+          token,
+          assertionData,
+          encryptedPrfOutput,
+          connectorPublicKey: connectorPublicKeyB64,
+        },
+        "*",
+      );
+      sentSuccess = true;
+      success(localeService.t("passkeyLoginSuccess"));
+    }
   } catch (err) {
     error(err.message || err);
   }
+}
+
+/**
+ * Perform WebAuthn authentication for unlock mode.
+ * Uses the provided credentials directly.
+ */
+async function performUnlockWebAuthn(): Promise<PublicKeyCredential> {
+  if (!unlockCredentials || unlockCredentials.length === 0) {
+    throw new Error("No credentials available for unlock");
+  }
+
+  // Build allowCredentials from the provided credentials
+  const allowCredentials = unlockCredentials.map((cred) => ({
+    type: "public-key" as const,
+    id: base64urlToBuffer(cred.id),
+    transports: cred.transports as AuthenticatorTransport[],
+  }));
+
+  // Get the PRF salt (same as login)
+  const prfSalt = await getLoginWithPrfSalt();
+
+  // Call credentials.get() with PRF extension
+  const credential = (await navigator.credentials.get({
+    publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      allowCredentials,
+      userVerification: "preferred",
+      extensions: {
+        prf: { eval: { first: prfSalt.buffer } },
+      },
+    },
+  })) as PublicKeyCredential;
+
+  return credential;
+}
+
+/**
+ * Perform WebAuthn authentication for login mode.
+ * Uses the server's assertion options.
+ */
+async function performLoginWebAuthn(
+  publicKeyOptions: PublicKeyCredentialRequestOptions,
+): Promise<PublicKeyCredential> {
+  // Get the PRF salt (must match WebAuthnLoginPrfKeyService.getLoginWithPrfSalt)
+  const prfSalt = await getLoginWithPrfSalt();
+
+  // Call credentials.get() with PRF extension
+  const credential = (await navigator.credentials.get({
+    publicKey: {
+      ...publicKeyOptions,
+      extensions: {
+        prf: { eval: { first: prfSalt.buffer } },
+      },
+    },
+  })) as PublicKeyCredential;
+
+  return credential;
 }
 
 /**

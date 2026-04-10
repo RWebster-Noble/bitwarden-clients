@@ -332,6 +332,7 @@ import { ExtensionAuthRequestAnsweringService } from "../auth/services/auth-requ
 import { AuthStatusBadgeUpdaterService } from "../auth/services/auth-status-badge-updater.service";
 import { ExtensionLockService } from "../auth/services/extension-lock.service";
 import { PasskeyLoginRelayService } from "../auth/services/passkey-login-relay.service";
+import { PasskeyUnlockRelayService } from "../auth/services/passkey-unlock-relay.service";
 import { OverlayNotificationsBackground as OverlayNotificationsBackgroundInterface } from "../autofill/background/abstractions/overlay-notifications.background";
 import {
   OverlayBackground as OverlayBackgroundInterface,
@@ -1502,6 +1503,7 @@ export default class MainBackground {
     );
 
     const passkeyLoginRelayService = new PasskeyLoginRelayService(this.logService);
+    const passkeyUnlockRelayService = new PasskeyUnlockRelayService(this.logService);
 
     this.runtimeBackground = new RuntimeBackground(
       this,
@@ -1519,6 +1521,7 @@ export default class MainBackground {
       this.billingAccountProfileStateService,
       this.browserInitialInstallService,
       passkeyLoginRelayService,
+      passkeyUnlockRelayService,
     );
     this.nativeMessagingBackground = new NativeMessagingBackground(
       this.keyService,
