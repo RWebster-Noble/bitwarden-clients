@@ -1,5 +1,5 @@
 <div class="tw-flex tw-flex-col tw-items-center tw-justify-center tw-min-h-[300px]">
-  <div *ngIf="currentState === 'loggingIn'" class="tw-text-center">
+  <div *ngIf="currentState() === 'loggingIn'" class="tw-text-center">
     <div class="tw-mb-4">
       <i class="bwi bwi-spinner bwi-spin bwi-3x"></i>
     </div>
@@ -7,7 +7,7 @@
     <p class="tw-text-sm tw-text-muted">{{ "completingPasskeyLogin" | i18n }}</p>
   </div>
 
-  <div *ngIf="currentState === 'loginFailed'" class="tw-text-center tw-max-w-md">
+  <div *ngIf="currentState() === 'loginFailed'" class="tw-text-center tw-max-w-md">
     <div class="tw-mb-4">
       <i class="bwi bwi-exclamation-triangle bwi-2x tw-text-danger"></i>
     </div>

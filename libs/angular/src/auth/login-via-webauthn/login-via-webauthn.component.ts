@@ -11,8 +11,9 @@ import {
 } from "@bitwarden/assets/svg";
 // These imports have been flagged as unallowed for this class. They may be involved in a circular dependency loop.
 // eslint-disable-next-line no-restricted-imports
-import { LoginSuccessHandlerService } from "@bitwarden/auth/common";
 import { LoginViaWebAuthnComponentService } from "@bitwarden/auth/angular";
+// eslint-disable-next-line no-restricted-imports
+import { LoginSuccessHandlerService } from "@bitwarden/auth/common";
 import { WebAuthnLoginServiceAbstraction } from "@bitwarden/common/auth/abstractions/webauthn/webauthn-login.service.abstraction";
 import { WebAuthnLoginCredentialAssertionView } from "@bitwarden/common/auth/models/view/webauthn-login/webauthn-login-credential-assertion.view";
 import { ClientType } from "@bitwarden/common/enums";
