@@ -475,12 +475,15 @@ function error(message: string) {
 function success(message: string) {
   (document.getElementById("passkey-button") as HTMLButtonElement).disabled = true;
 
-  const el = document.getElementById("msg");
-  resetMsgBox(el);
-  el.textContent = message;
-  el.classList.add("alert");
-  el.classList.add("alert-success");
-  el.classList.remove("tw-hidden");
+  const msgEl = document.getElementById("msg");
+  resetMsgBox(msgEl);
+  msgEl.textContent = message;
+  msgEl.classList.add("alert");
+  msgEl.classList.add("alert-success");
+  msgEl.classList.remove("tw-hidden");
+
+  // Close the window immediately
+  window.close();
 }
 
 function resetMsgBox(el: HTMLElement) {
