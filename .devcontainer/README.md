@@ -70,7 +70,13 @@ Pre-installed extensions for optimal development experience:
 
 ### Post-Container Setup
 
-Once the container is running, all dependencies are automatically installed. You can verify with:
+Once the container is running, all dependencies are automatically installed. The dev container will automatically:
+
+1. Install npm dependencies (`npm ci`)
+2. Set up Firefox development certificates (`setup-dev-certs.sh`)
+3. **Create `apps/web/config/local.json` from the devcontainer template** (if it doesn't exist)
+
+You can verify the setup with:
 
 ```bash
 # Check Node.js version

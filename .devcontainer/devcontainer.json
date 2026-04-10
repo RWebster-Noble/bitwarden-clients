@@ -175,8 +175,8 @@
   },
 
   // Use 'postCreateCommand' to run commands after the container is created
-  // This installs all npm dependencies and sets up Firefox certificates
-  "postCreateCommand": "npm ci && setup-dev-certs.sh",
+  // This installs all npm dependencies, sets up Firefox certificates, and copies devcontainer config
+  "postCreateCommand": "npm ci && setup-dev-certs.sh && .devcontainer/setup-local-config.sh",
 
   // Use 'postStartCommand' to run commands each time the container starts
   // Ensures git hooks are set up (husky)
