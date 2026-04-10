@@ -482,8 +482,10 @@ function success(message: string) {
   msgEl.classList.add("alert-success");
   msgEl.classList.remove("tw-hidden");
 
-  // Close the window immediately
-  window.close();
+  // Delay closing to allow async messages (postMessage) to be processed
+  setTimeout(() => {
+    window.close();
+  }, 2000);
 }
 
 function resetMsgBox(el: HTMLElement) {
