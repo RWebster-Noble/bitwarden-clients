@@ -18,9 +18,9 @@ const windowMessageHandlers: ContentMessageWindowEventHandlers = {
   webAuthnResult: ({ data, referrer }: { data: any; referrer: string }) =>
     handleWebAuthnResultMessage(data, referrer),
   passkeyLoginResult: ({ data, referrer }: { data: any; referrer: string }) =>
-    handlePasskeyLoginResultMessage(data, referrer),
+    handlePasskeyResultMessage(data, referrer, "login"),
   passkeyUnlockResult: ({ data, referrer }: { data: any; referrer: string }) =>
-    handlePasskeyUnlockResultMessage(data, referrer),
+    handlePasskeyResultMessage(data, referrer, "unlock"),
   [VaultMessages.checkBwInstalled]: () => handleExtensionInstallCheck(),
   duoResult: ({ data, referrer }: { data: any; referrer: string }) =>
     handleDuoResultMessage(data, referrer),
@@ -83,38 +83,33 @@ function handleWebAuthnResultMessage(data: ContentMessageWindowData, referrer: s
 }
 
 /**
- * Handles the passkey login result message from the window.
+ * Handles passkey result messages (login or unlock) from the window.
  *
  * @param data - Data from the window message
  * @param referrer - The referrer of the window
+ * @param type - The type of passkey result ('login' or 'unlock')
  */
-function handlePasskeyLoginResultMessage(data: ContentMessageWindowData, referrer: string) {
-  const { command, token, assertionData, encryptedPrfOutput, connectorPublicKey } = data;
-  sendExtensionRuntimeMessage({
-    command,
-    token,
-    assertionData,
-    encryptedPrfOutput,
-    connectorPublicKey,
-    referrer,
-  });
-}
+function handlePasskeyResultMessage(
+  data: ContentMessageWindowData,
+  referrer: string,
+  type: "login" | "unlock",
+) {
+  const { command, encryptedPrfOutput, connectorPublicKey } = data;
 
-/**
- * Handles the passkey unlock result message from the window.
- *
- * @param data - Data from the window message
- * @param referrer - The referrer of the window
- */
-function handlePasskeyUnlockResultMessage(data: ContentMessageWindowData, referrer: string) {
-  const { command, credentialId, encryptedPrfOutput, connectorPublicKey } = data;
-  sendExtensionRuntimeMessage({
+  const basePayload = {
     command,
-    credentialId,
     encryptedPrfOutput,
     connectorPublicKey,
     referrer,
-  });
+    type,
+  };
+
+  const typeSpecificData =
+    type === "login"
+      ? { token: data.token, assertionData: data.assertionData }
+      : { credentialId: data.credentialId };
+
+  sendExtensionRuntimeMessage({ ...basePayload, ...typeSpecificData });
 }
 
 /** @deprecated use {@link handleOpenBrowserExtensionToUrlMessage} */

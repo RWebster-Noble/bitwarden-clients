@@ -9,8 +9,7 @@ const AuthPopoutType = {
   twoFactorAuthWebAuthn: "auth_twoFactorAuthWebAuthn",
   twoFactorAuthEmail: "auth_twoFactorAuthEmail",
   twoFactorAuthDuo: "auth_twoFactorAuthDuo",
-  passkeyLoginResult: "auth_passkeyLoginResult",
-  passkeyUnlockResult: "auth_passkeyUnlockResult",
+  passkeyResult: "auth_passkeyResult",
 } as const;
 
 const extensionUnlockUrls = new Set([
@@ -130,35 +129,20 @@ async function closeTwoFactorAuthDuoPopout() {
 }
 
 /**
- * Opens a popout that facilitates completing passkey login with PRF.
+ * Opens a popout that facilitates completing passkey result (login or unlock) with PRF.
  */
-async function openPasskeyLoginResultPopout() {
-  await BrowserPopupUtils.openPopout("popup/index.html#/login-with-passkey-result", {
-    singleActionKey: AuthPopoutType.passkeyLoginResult,
+async function openPasskeyResultPopout(type: "login" | "unlock") {
+  const route = type === "login" ? "login-with-passkey-result" : "unlock-with-passkey-result";
+  await BrowserPopupUtils.openPopout(`popup/index.html#/${route}`, {
+    singleActionKey: AuthPopoutType.passkeyResult,
   });
 }
 
 /**
- * Closes the passkey login result popout.
+ * Closes the passkey result popout.
  */
-async function closePasskeyLoginResultPopout() {
-  await BrowserPopupUtils.closeSingleActionPopout(AuthPopoutType.passkeyLoginResult);
-}
-
-/**
- * Opens a popout that facilitates completing passkey unlock with PRF.
- */
-async function openUnlockWithPasskeyResultPopout() {
-  await BrowserPopupUtils.openPopout("popup/index.html#/unlock-with-passkey-result", {
-    singleActionKey: AuthPopoutType.passkeyUnlockResult,
-  });
-}
-
-/**
- * Closes the passkey unlock result popout.
- */
-async function closeUnlockWithPasskeyResultPopout() {
-  await BrowserPopupUtils.closeSingleActionPopout(AuthPopoutType.passkeyUnlockResult);
+async function closePasskeyResultPopout() {
+  await BrowserPopupUtils.closeSingleActionPopout(AuthPopoutType.passkeyResult);
 }
 
 export {
@@ -173,8 +157,6 @@ export {
   closeTwoFactorAuthEmailPopout,
   openTwoFactorAuthDuoPopout,
   closeTwoFactorAuthDuoPopout,
-  openPasskeyLoginResultPopout,
-  closePasskeyLoginResultPopout,
-  openUnlockWithPasskeyResultPopout,
-  closeUnlockWithPasskeyResultPopout,
+  openPasskeyResultPopout,
+  closePasskeyResultPopout,
 };

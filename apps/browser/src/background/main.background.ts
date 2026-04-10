@@ -290,8 +290,7 @@ import {
 import { ExtensionAuthRequestAnsweringService } from "../auth/services/auth-request-answering/extension-auth-request-answering.service";
 import { AuthStatusBadgeUpdaterService } from "../auth/services/auth-status-badge-updater.service";
 import { ExtensionLockService } from "../auth/services/extension-lock.service";
-import { PasskeyLoginRelayService } from "../auth/services/passkey-login-relay.service";
-import { PasskeyUnlockRelayService } from "../auth/services/passkey-unlock-relay.service";
+import { PasskeyRelayService } from "../auth/services/passkey-relay.service";
 import { OverlayNotificationsBackground as OverlayNotificationsBackgroundInterface } from "../autofill/background/abstractions/overlay-notifications.background";
 import { OverlayBackground as OverlayBackgroundInterface } from "../autofill/background/abstractions/overlay.background";
 import { AutoSubmitLoginBackground } from "../autofill/background/auto-submit-login.background";
@@ -1356,8 +1355,7 @@ export default class MainBackground {
       logoutService,
     );
 
-    const passkeyLoginRelayService = new PasskeyLoginRelayService(this.logService);
-    const passkeyUnlockRelayService = new PasskeyUnlockRelayService(this.logService);
+    const passkeyRelayService = new PasskeyRelayService(this.logService);
 
     this.runtimeBackground = new RuntimeBackground(
       this,
@@ -1374,8 +1372,7 @@ export default class MainBackground {
       this.lockService,
       this.billingAccountProfileStateService,
       this.browserInitialInstallService,
-      passkeyLoginRelayService,
-      passkeyUnlockRelayService,
+      passkeyRelayService,
     );
     this.nativeMessagingBackground = new NativeMessagingBackground(
       this.keyService,

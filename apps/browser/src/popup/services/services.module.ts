@@ -187,8 +187,7 @@ import { ExtensionTwoFactorAuthComponentService } from "../../auth/services/exte
 import { ExtensionTwoFactorAuthDuoComponentService } from "../../auth/services/extension-two-factor-auth-duo-component.service";
 import { ExtensionTwoFactorAuthWebAuthnComponentService } from "../../auth/services/extension-two-factor-auth-webauthn-component.service";
 import { ExtensionUnlockViaWebAuthnComponentService } from "../../auth/services/extension-unlock-via-webauthn-component.service";
-import { PasskeyLoginRelayService } from "../../auth/services/passkey-login-relay.service";
-import { PasskeyUnlockRelayService } from "../../auth/services/passkey-unlock-relay.service";
+import { PasskeyRelayService } from "../../auth/services/passkey-relay.service";
 import { AutofillService as AutofillServiceAbstraction } from "../../autofill/services/abstractions/autofill.service";
 import AutofillService from "../../autofill/services/autofill.service";
 import { InlineMenuFieldQualificationService } from "../../autofill/services/inline-menu-field-qualification.service";
@@ -814,13 +813,8 @@ const safeProviders: SafeProvider[] = [
     deps: [StateProvider, AutomaticUserConfirmationService],
   }),
   safeProvider({
-    provide: PasskeyLoginRelayService,
-    useFactory: (logService: LogService) => new PasskeyLoginRelayService(logService),
-    deps: [LogService],
-  }),
-  safeProvider({
-    provide: PasskeyUnlockRelayService,
-    useFactory: (logService: LogService) => new PasskeyUnlockRelayService(logService),
+    provide: PasskeyRelayService,
+    useFactory: (logService: LogService) => new PasskeyRelayService(logService),
     deps: [LogService],
   }),
 ];

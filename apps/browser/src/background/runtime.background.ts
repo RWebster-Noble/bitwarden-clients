@@ -22,12 +22,11 @@ import { BiometricsCommands } from "@bitwarden/key-management";
 // eslint-disable-next-line no-restricted-imports
 import {
   closeUnlockPopout,
-  openPasskeyLoginResultPopout,
+  openPasskeyResultPopout,
   openSsoAuthResultPopout,
   openTwoFactorAuthWebAuthnPopout,
 } from "../auth/popup/utils/auth-popout-window";
-import { PasskeyLoginRelayService } from "../auth/services/passkey-login-relay.service";
-import { PasskeyUnlockRelayService } from "../auth/services/passkey-unlock-relay.service";
+import { PasskeyRelayService } from "../auth/services/passkey-relay.service";
 import { LockedVaultPendingNotificationsData } from "../autofill/background/abstractions/notification.background";
 import { AutofillService } from "../autofill/services/abstractions/autofill.service";
 import { BrowserApi } from "../platform/browser/browser-api";
@@ -62,8 +61,7 @@ export default class RuntimeBackground {
     private readonly lockService: LockService,
     private billingAccountProfileStateService: BillingAccountProfileStateService,
     private browserInitialInstallService: BrowserInitialInstallService,
-    private passkeyLoginRelayService: PasskeyLoginRelayService,
-    private passkeyUnlockRelayService: PasskeyUnlockRelayService,
+    private passkeyRelayService: PasskeyRelayService,
   ) {
     // onInstalled listener must be wired up before anything else, so we do it in the ctor
     chrome.runtime.onInstalled.addListener((details: any) => {
@@ -89,8 +87,7 @@ export default class RuntimeBackground {
         BiometricsCommands.GetBiometricsStatusForUser,
         BiometricsCommands.CanEnableBiometricUnlock,
         "getUserPremiumStatus",
-        "initiatePasskeyLoginRelay",
-        "initiatePasskeyUnlockRelay",
+        "initiatePasskeyRelay",
       ];
 
       if (messagesWithResponse.includes(msg.command)) {
@@ -224,11 +221,8 @@ export default class RuntimeBackground {
         );
         return result;
       }
-      case "initiatePasskeyLoginRelay": {
-        return await this.initiatePasskeyLoginRelay();
-      }
-      case "initiatePasskeyUnlockRelay": {
-        return await this.initiatePasskeyUnlockRelay();
+      case "initiatePasskeyRelay": {
+        return await this.initiatePasskeyRelay();
       }
     }
   }
@@ -363,20 +357,14 @@ export default class RuntimeBackground {
         await openTwoFactorAuthWebAuthnPopout(msg);
         break;
       }
-      case "passkeyLoginResult": {
-        if (!(await this.isValidVaultReferrer(msg.referrer))) {
-          return;
-        }
-
-        await this.handlePasskeyLoginResult(msg);
-        break;
-      }
+      case "passkeyLoginResult":
       case "passkeyUnlockResult": {
         if (!(await this.isValidVaultReferrer(msg.referrer))) {
           return;
         }
 
-        await this.handlePasskeyUnlockResult(msg);
+        const type = msg.command === "passkeyLoginResult" ? "login" : "unlock";
+        await this.handlePasskeyResult({ ...msg, type });
         break;
       }
       case "reloadPopup":
@@ -569,128 +557,80 @@ export default class RuntimeBackground {
   }
 
   /**
-   * Handles the passkey login result message from the connector page.
-   * Decrypts the PRF output using ECDH and opens the result popout.
+   * Handles passkey result messages (login or unlock) from the connector page.
+   * Decrypts the PRF output using ECDH and opens the appropriate result popout.
    */
-  private async handlePasskeyLoginResult(msg: {
-    token: string;
-    assertionData: string;
+  private async handlePasskeyResult(msg: {
+    type: "login" | "unlock";
+    token?: string;
+    assertionData?: string;
+    credentialId?: string;
     encryptedPrfOutput?: { ciphertext: string; iv: string } | null;
     connectorPublicKey?: string | null;
     referrer: string;
   }): Promise<void> {
+    const isLogin = msg.type === "login";
+    const logPrefix = isLogin ? "[PasskeyLogin]" : "[PasskeyUnlock]";
+
+    // Use unified popout function
+    const popoutType = isLogin ? "login" : "unlock";
+
     try {
-      this.logService.info("[PasskeyLogin] handlePasskeyLoginResult called");
+      this.logService.info(`${logPrefix} handlePasskeyResult called`);
 
       // Check if there's a pending ECDH session and it's not expired
       if (
         !this.pendingPasskeyLoginEcdhSession ||
         Date.now() > this.pendingPasskeyLoginEcdhSession.expiresAt
       ) {
-        this.logService.error("[PasskeyLogin] No pending passkey login session or session expired");
+        this.logService.error(`${logPrefix} No pending passkey session or session expired`);
         return;
       }
 
-      this.logService.info("[PasskeyLogin] ECDH session valid, processing result...");
+      this.logService.info(`${logPrefix} ECDH session valid, processing result...`);
 
       let prfOutput: ArrayBuffer | null = null;
 
       // Decrypt PRF output if present
       if (msg.encryptedPrfOutput && msg.connectorPublicKey) {
-        this.logService.info("[PasskeyLogin] Decrypting PRF output...");
+        this.logService.info(`${logPrefix} Decrypting PRF output...`);
         prfOutput = await this.decryptPrfOutput(
           msg.encryptedPrfOutput.ciphertext,
           msg.encryptedPrfOutput.iv,
           msg.connectorPublicKey,
         );
-        this.logService.info("[PasskeyLogin] PRF output decrypted successfully");
+        this.logService.info(`${logPrefix} PRF output decrypted successfully`);
       } else {
-        this.logService.info("[PasskeyLogin] No encrypted PRF output to decrypt");
+        this.logService.info(`${logPrefix} No encrypted PRF output to decrypt`);
       }
 
-      this.logService.info("[PasskeyLogin] Storing result in relay service...");
+      this.logService.info(`${logPrefix} Storing result in relay service...`);
 
       // Store the result in the relay service for the popout to consume
-      await this.passkeyLoginRelayService.storeResult({
-        token: msg.token,
-        assertionData: msg.assertionData,
-        prfOutput,
-      });
+      if (isLogin) {
+        await this.passkeyRelayService.storeResult({
+          type: "login",
+          token: msg.token!,
+          assertionData: msg.assertionData!,
+          prfOutput,
+        });
+      } else {
+        await this.passkeyRelayService.storeResult({
+          type: "unlock",
+          credentialId: msg.credentialId!,
+          prfOutput: prfOutput as ArrayBuffer, // unlock always requires PRF output
+        });
+      }
 
       // Clear the ECDH session (private key is discarded)
       this.pendingPasskeyLoginEcdhSession = null;
 
-      this.logService.info("[PasskeyLogin] Opening result popout...");
+      this.logService.info(`${logPrefix} Opening result popout...`);
       // Open the result popout
-      await openPasskeyLoginResultPopout();
-      this.logService.info("[PasskeyLogin] Result popout opened successfully");
+      await openPasskeyResultPopout(popoutType);
+      this.logService.info(`${logPrefix} Result popout opened successfully`);
     } catch (error) {
-      this.logService.error("[PasskeyLogin] Error handling passkey login result", error);
-    }
-  }
-
-  /**
-   * Handles the passkey unlock result message from the connector page.
-   * Decrypts the PRF output using ECDH and opens the result popout.
-   */
-  private async handlePasskeyUnlockResult(msg: {
-    credentialId: string;
-    encryptedPrfOutput?: { ciphertext: string; iv: string } | null;
-    connectorPublicKey?: string | null;
-    referrer: string;
-  }): Promise<void> {
-    // FIXME (PM-22628): Popup imports are forbidden in background
-    const { openUnlockWithPasskeyResultPopout } =
-      await import("../auth/popup/utils/auth-popout-window");
-
-    try {
-      this.logService.info("[PasskeyUnlock] handlePasskeyUnlockResult called");
-
-      // Check if there's a pending ECDH session and it's not expired
-      if (
-        !this.pendingPasskeyLoginEcdhSession ||
-        Date.now() > this.pendingPasskeyLoginEcdhSession.expiresAt
-      ) {
-        this.logService.error(
-          "[PasskeyUnlock] No pending passkey unlock session or session expired",
-        );
-        return;
-      }
-
-      this.logService.info("[PasskeyUnlock] ECDH session valid, processing result...");
-
-      let prfOutput: ArrayBuffer | null = null;
-
-      // Decrypt PRF output if present
-      if (msg.encryptedPrfOutput && msg.connectorPublicKey) {
-        this.logService.info("[PasskeyUnlock] Decrypting PRF output...");
-        prfOutput = await this.decryptPrfOutput(
-          msg.encryptedPrfOutput.ciphertext,
-          msg.encryptedPrfOutput.iv,
-          msg.connectorPublicKey,
-        );
-        this.logService.info("[PasskeyUnlock] PRF output decrypted successfully");
-      } else {
-        this.logService.info("[PasskeyUnlock] No encrypted PRF output to decrypt");
-      }
-
-      this.logService.info("[PasskeyUnlock] Storing result in relay service...");
-
-      // Store the result in the relay service for the popout to consume
-      await this.passkeyUnlockRelayService.storeResult({
-        credentialId: msg.credentialId,
-        prfOutput,
-      });
-
-      // Clear the ECDH session (private key is discarded)
-      this.pendingPasskeyLoginEcdhSession = null;
-
-      this.logService.info("[PasskeyUnlock] Opening result popout...");
-      // Open the result popout
-      await openUnlockWithPasskeyResultPopout();
-      this.logService.info("[PasskeyUnlock] Result popout opened successfully");
-    } catch (error) {
-      this.logService.error("[PasskeyUnlock] Error handling passkey unlock result", error);
+      this.logService.error(`${logPrefix} Error handling passkey result`, error);
     }
   }
 
@@ -790,12 +730,12 @@ export default class RuntimeBackground {
   }
 
   /**
-   * Initiates a passkey login relay session by generating an ephemeral ECDH key pair.
-   * Called when the user clicks "Log in with passkey" on Firefox.
+   * Initiates a passkey relay session by generating an ephemeral ECDH key pair.
+   * Called when the user clicks "Log in with passkey" or "Unlock with passkey" on Firefox.
    *
    * @returns The base64url-encoded public key to pass to the connector page
    */
-  async initiatePasskeyLoginRelay(): Promise<string> {
+  async initiatePasskeyRelay(): Promise<string> {
     // Generate ephemeral ECDH key pair (P-256)
     const keyPair = await crypto.subtle.generateKey(
       {
@@ -815,17 +755,6 @@ export default class RuntimeBackground {
     // Export and return the public key
     const publicKeyBuffer = await crypto.subtle.exportKey("raw", keyPair.publicKey);
     return this.bufferToBase64url(publicKeyBuffer);
-  }
-
-  /**
-   * Initiates a passkey unlock relay session by generating an ephemeral ECDH key pair.
-   * Called when the user clicks "Unlock with passkey" on Firefox.
-   *
-   * @returns The base64url-encoded public key to pass to the connector page
-   */
-  async initiatePasskeyUnlockRelay(): Promise<string> {
-    // For unlock, we use the same mechanism as login - reuse the login relay session
-    return this.initiatePasskeyLoginRelay();
   }
 
   /**
