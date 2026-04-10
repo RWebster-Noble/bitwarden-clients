@@ -1,0 +1,17 @@
+{
+  "urls": {
+    "notifications": "https://vault.qa.bitwarden.pw/notifications"
+  },
+  "dev": {
+    "port": 443,
+    "httpsKey": "/usr/local/share/ca-certificates/dev/vault.key",
+    "httpsCert": "/usr/local/share/ca-certificates/dev/vault.crt",
+    "allowedHosts": ["vault.qa.bitwarden.pw", "localhost"],
+    "proxyApi": "https://api.qa.bitwarden.pw",
+    "proxyIdentity": "https://identity.qa.bitwarden.pw",
+    "proxyEvents": "https://events.qa.bitwarden.pw",
+    "proxyNotifications": "https://notifications.qa.bitwarden.pw",
+    "proxyIcons": "https://icons.qa.bitwarden.pw",
+    "wsConnectSrc": "wss://notifications.qa.bitwarden.pw ws://localhost:61840"
+  }
+}

@@ -12,6 +12,8 @@ Get the Bitwarden Web Vault running locally with HTTPS and Firefox in under 5 mi
 
 ### 1. Start the Web Vault
 
+The dev container automatically sets up the web vault configuration. Once the container is running, simply start the dev server:
+
 In the VS Code terminal (inside the dev container):
 
 ```bash
