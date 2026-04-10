@@ -37,7 +37,7 @@ export class ExtensionUnlockViaWebAuthnComponentService {
   async openWebVaultRelayTab(): Promise<void> {
     // 1. Ask the background to generate the ephemeral ECDH key pair
     const response = await chrome.runtime.sendMessage({
-      command: "initiatePasskeyUnlockRelay",
+      command: "initiatePasskeyRelay",
     });
 
     if (!response?.result) {

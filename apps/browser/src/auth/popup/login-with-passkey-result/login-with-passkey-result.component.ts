@@ -26,8 +26,8 @@ import {
 import { KeyService } from "@bitwarden/key-management";
 
 import { BrowserApi } from "../../../platform/browser/browser-api";
-import { PasskeyLoginRelayService } from "../../services/passkey-login-relay.service";
-import { closePasskeyLoginResultPopout } from "../utils/auth-popout-window";
+import { PasskeyRelayService, PasskeyLoginRelayResult } from "../../services/passkey-relay.service";
+import { closePasskeyResultPopout } from "../utils/auth-popout-window";
 
 export type State = "loggingIn" | "loginFailed";
 
@@ -58,7 +58,7 @@ export class LoginWithPasskeyResultComponent implements OnInit {
   }
 
   constructor(
-    private readonly passkeyLoginRelayService: PasskeyLoginRelayService,
+    private readonly passkeyRelayService: PasskeyRelayService,
     private readonly webAuthnLoginService: WebAuthnLoginServiceAbstraction,
     private readonly webAuthnLoginPrfKeyService: WebAuthnLoginPrfKeyServiceAbstraction,
     private readonly router: Router,
@@ -89,7 +89,16 @@ export class LoginWithPasskeyResultComponent implements OnInit {
       this.logService.info("[PasskeyLogin] Starting completeLogin");
 
       // Consume the relay result
-      const relayResult = await this.passkeyLoginRelayService.consumeResult();
+      const relayResult =
+        (await this.passkeyRelayService.consumeResult()) as PasskeyLoginRelayResult | null;
+
+      if (relayResult && relayResult.type !== "login") {
+        this.logService.error("[PasskeyLogin] Unexpected result type:", relayResult.type);
+        this.validationService.showError(this.i18nService.t("passkeyLoginTimeout"));
+        this.currentState.set("loginFailed");
+        this.setFailureIcon();
+        return;
+      }
 
       if (!relayResult) {
         // No result available - timeout or error
@@ -193,7 +202,7 @@ export class LoginWithPasskeyResultComponent implements OnInit {
       // This matches the 2FA flow where closeSingleActionPopouts() closes the
       // WebAuthn popout after the 2FA token is submitted.
       this.logService.info("[PasskeyLogin] Login complete, closing result popout...");
-      await closePasskeyLoginResultPopout();
+      await closePasskeyResultPopout();
     } catch (error) {
       this.logService.error("[PasskeyLogin] Error in completeLogin:", error);
       if (error instanceof ErrorResponse) {

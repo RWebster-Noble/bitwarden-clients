@@ -33,7 +33,7 @@ export class ExtensionLoginViaWebAuthnComponentService implements LoginViaWebAut
   async openWebVaultRelayTab(): Promise<void> {
     // 1. Ask the background to generate the ephemeral ECDH key pair
     const response = await chrome.runtime.sendMessage({
-      command: "initiatePasskeyLoginRelay",
+      command: "initiatePasskeyRelay",
     });
 
     if (!response?.result) {

@@ -26,8 +26,11 @@ import {
 import { KeyService } from "@bitwarden/key-management";
 
 import { BrowserApi } from "../../../platform/browser/browser-api";
-import { PasskeyUnlockRelayService } from "../../services/passkey-unlock-relay.service";
-import { closeUnlockWithPasskeyResultPopout } from "../utils/auth-popout-window";
+import {
+  PasskeyRelayService,
+  PasskeyUnlockRelayResult,
+} from "../../services/passkey-relay.service";
+import { closePasskeyResultPopout } from "../utils/auth-popout-window";
 
 export type State = "unlocking" | "unlockFailed";
 
@@ -46,7 +49,7 @@ export class UnlockWithPasskeyResultComponent implements OnInit {
   };
 
   constructor(
-    private readonly passkeyUnlockRelayService: PasskeyUnlockRelayService,
+    private readonly passkeyRelayService: PasskeyRelayService,
     private readonly webAuthnLoginPrfKeyService: WebAuthnLoginPrfKeyServiceAbstraction,
     private readonly userDecryptionOptionsService: UserDecryptionOptionsServiceAbstraction,
     private readonly accountService: AccountService,
@@ -78,7 +81,16 @@ export class UnlockWithPasskeyResultComponent implements OnInit {
       this.logService.info("[PasskeyUnlock] Starting completeUnlock");
 
       // Consume the relay result
-      const relayResult = await this.passkeyUnlockRelayService.consumeResult();
+      const relayResult =
+        (await this.passkeyRelayService.consumeResult()) as PasskeyUnlockRelayResult | null;
+
+      if (relayResult && relayResult.type !== "unlock") {
+        this.logService.error("[PasskeyUnlock] Unexpected result type:", relayResult.type);
+        this.validationService.showError(this.i18nService.t("passkeyUnlockTimeout"));
+        this.currentState.set("unlockFailed");
+        this.setFailureIcon();
+        return;
+      }
 
       if (!relayResult) {
         // No result available - timeout or error
@@ -153,7 +165,7 @@ export class UnlockWithPasskeyResultComponent implements OnInit {
 
       // Close this popout
       this.logService.info("[PasskeyUnlock] Closing result popout...");
-      await closeUnlockWithPasskeyResultPopout();
+      await closePasskeyResultPopout();
 
       // Navigate to vault
       await this.router.navigate(["/tabs/vault"]);
@@ -165,7 +177,7 @@ export class UnlockWithPasskeyResultComponent implements OnInit {
       if (error instanceof Error) {
         if (error.message.includes("canceled")) {
           // User canceled - close without error
-          await closeUnlockWithPasskeyResultPopout();
+          await closePasskeyResultPopout();
           return;
         }
         errorMessage = error.message;
