@@ -1,0 +1,23 @@
+<div class="tw-flex tw-flex-col tw-items-center tw-justify-center tw-min-h-[300px]">
+  <div *ngIf="currentState() === 'unlocking'" class="tw-text-center">
+    <div class="tw-mb-4">
+      <i class="bwi bwi-spinner bwi-spin bwi-3x"></i>
+    </div>
+    <p class="tw-text-lg">{{ "unlocking" | i18n }}</p>
+    <p class="tw-text-sm tw-text-muted">{{ "completingPasskeyUnlock" | i18n }}</p>
+  </div>
+
+  <div *ngIf="currentState() === 'unlockFailed'" class="tw-text-center tw-max-w-md">
+    <div class="tw-mb-4">
+      <i class="bwi bwi-exclamation-triangle bwi-2x tw-text-danger"></i>
+    </div>
+    <h2 class="tw-text-xl tw-font-semibold tw-mb-2">{{ "unlockFailed" | i18n }}</h2>
+    <p class="tw-text-sm tw-text-muted tw-mb-6">{{ "passkeyUnlockFailedDesc" | i18n }}</p>
+    <button type="button" bitButton buttonType="primary" (click)="retry()" class="tw-w-full">
+      {{ "tryAgain" | i18n }}
+    </button>
+    <a bitButton buttonType="secondary" routerLink="/lock" class="tw-w-full tw-mt-2">
+      {{ "backToLock" | i18n }}
+    </a>
+  </div>
+</div>

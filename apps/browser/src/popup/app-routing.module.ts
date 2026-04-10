@@ -57,6 +57,7 @@ import { platformPopoutGuard } from "../auth/popup/guards/platform-popout.guard"
 import { LoginWithPasskeyResultComponent } from "../auth/popup/login-with-passkey-result/login-with-passkey-result.component";
 import { AccountSecurityComponent } from "../auth/popup/settings/account-security.component";
 import { ExtensionDeviceManagementComponent } from "../auth/popup/settings/extension-device-management.component";
+import { UnlockWithPasskeyResultComponent } from "../auth/popup/unlock-with-passkey-result/unlock-with-passkey-result.component";
 import { Fido2Component } from "../autofill/popup/fido2/fido2.component";
 import { AutofillComponent } from "../autofill/popup/settings/autofill.component";
 import { BlockedDomainsComponent } from "../autofill/popup/settings/blocked-domains.component";
@@ -631,6 +632,18 @@ const routes: Routes = [
           elevation: 1,
         } satisfies RouteDataProperties & ExtensionAnonLayoutWrapperData,
         children: [{ path: "", component: LoginWithPasskeyResultComponent }],
+      },
+      {
+        path: "unlock-with-passkey-result",
+        canActivate: [lockGuard()],
+        data: {
+          pageIcon: TwoFactorAuthSecurityKeyIcon,
+          pageTitle: {
+            key: "unlocking",
+          },
+          elevation: 1,
+        } satisfies RouteDataProperties & ExtensionAnonLayoutWrapperData,
+        children: [{ path: "", component: UnlockWithPasskeyResultComponent }],
       },
     ],
   },

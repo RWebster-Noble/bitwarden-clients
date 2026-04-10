@@ -47,7 +47,7 @@ export class ExtensionLoginViaWebAuthnComponentService implements LoginViaWebAut
     const webVaultUrl = env.getWebVaultUrl();
 
     // Use URL fragment to avoid sending the key to the server
-    const connectorUrl = `${webVaultUrl}/passkey-login-connector.html#extensionPublicKey=${encodeURIComponent(extensionPublicKey)}`;
+    const connectorUrl = `${webVaultUrl}/passkey-connector.html#extensionPublicKey=${encodeURIComponent(extensionPublicKey)}`;
 
     this.platformUtilsService.launchUri(connectorUrl);
   }

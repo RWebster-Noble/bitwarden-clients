@@ -267,8 +267,8 @@ in the connector file (converts ArrayBuffer to base64url string).
 
 ### Change 1: New Web Vault Connector Page
 
-**File (new)**: `apps/web/src/connectors/passkey-login-connector.ts`
-**Template (new)**: `apps/web/src/connectors/passkey-login-connector.html`
+**File (new)**: `apps/web/src/connectors/passkey-connector.ts`
+**Template (new)**: `apps/web/src/connectors/passkey-connector.html`
 
 **Why**: Unlike the 2FA fallback which receives a pre-fetched challenge, this connector page
 must handle the **entire WebAuthn ceremony from scratch**: fetch assertion options, call
@@ -348,7 +348,7 @@ well-known salt that is used consistently. Either:
 - The connector page uses the same fixed value independently.
   The second option is simpler and avoids adding more URL state.
 
-**Webpack config change**: Register `passkey-login-connector` as a new entry point in
+**Webpack config change**: Register `passkey-connector` as a new entry point in
 `apps/web/webpack.base.js` (same pattern as `webauthn-fallback-connector`).
 
 ---
@@ -631,7 +631,7 @@ export class ExtensionLoginViaWebAuthnComponentService implements LoginViaWebAut
     // 2. Open the connector page with public key in fragment (not sent to server)
     const env = await firstValueFrom(this.environmentService.environment$);
     this.platformUtilsService.launchUri(
-      `${env.getWebVaultUrl()}/passkey-login-connector.html#extensionPublicKey=${encodeURIComponent(extensionPublicKey)}`,
+      `${env.getWebVaultUrl()}/passkey-connector.html#extensionPublicKey=${encodeURIComponent(extensionPublicKey)}`,
     );
   }
 }
@@ -689,10 +689,10 @@ isLoginWithPasskeySupported(): boolean {
 **Add to entry points**:
 
 ```javascript
-"passkey-login-connector": "./src/connectors/passkey-login-connector.ts",
+"passkey-connector": "./src/connectors/passkey-connector.ts",
 ```
 
-Add a corresponding `HtmlWebpackPlugin` entry pointing to `src/connectors/passkey-login-connector.html`.
+Add a corresponding `HtmlWebpackPlugin` entry pointing to `src/connectors/passkey-connector.html`.
 
 ---
 
@@ -741,14 +741,14 @@ Firefox Extension Popup
   │     ← extensionPublicKey (base64url)
   │
   │  3. platformUtilsService.launchUri(
-  │       vault.bitwarden.com/passkey-login-connector.html
+  │       vault.bitwarden.com/passkey-connector.html
   │       #extensionPublicKey=<base64url>
   │     )
   │
   │  currentState = "waiting" (shows loading UI)
   │
   ↓
-Browser opens new tab: vault.bitwarden.com/passkey-login-connector.html
+Browser opens new tab: vault.bitwarden.com/passkey-connector.html
   │
   │  4. Parse URL fragment → extensionPublicKey
   │
@@ -844,8 +844,8 @@ User is logged in with vault decrypted via PRF key ✓
 
 | File                                                                                           | New/Modify | Why                                                                                           |
 | ---------------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------- |
-| `apps/web/src/connectors/passkey-login-connector.ts`                                           | **New**    | Connector page: fetches assertion options, calls `credentials.get()` with PRF, relays result  |
-| `apps/web/src/connectors/passkey-login-connector.html`                                         | **New**    | HTML template for connector page                                                              |
+| `apps/web/src/connectors/passkey-connector.ts`                                                 | **New**    | Connector page: fetches assertion options, calls `credentials.get()` with PRF, relays result  |
+| `apps/web/src/connectors/passkey-connector.html`                                               | **New**    | HTML template for connector page                                                              |
 | `apps/web/webpack.base.js`                                                                     | Modify     | Register new connector page as webpack entry point                                            |
 | `apps/browser/src/autofill/content/content-message-handler.ts`                                 | Modify     | Handle `passkeyLoginResult` window message                                                    |
 | `apps/browser/src/autofill/content/abstractions/content-message-handler.ts`                    | Modify     | Type definition for `passkeyLoginResult`                                                      |

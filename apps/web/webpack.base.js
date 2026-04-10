@@ -153,9 +153,9 @@ module.exports.buildConfig = function buildConfig(params) {
       chunks: ["connectors/webauthn-fallback", "styles"],
     }),
     new HtmlWebpackPlugin({
-      template: path.resolve(__dirname, "src/connectors/passkey-login-connector.html"),
-      filename: "passkey-login-connector.html",
-      chunks: ["connectors/passkey-login-connector", "styles"],
+      template: path.resolve(__dirname, "src/connectors/passkey-connector.html"),
+      filename: "passkey-connector.html",
+      chunks: ["connectors/passkey-connector", "styles"],
     }),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, "src/connectors/sso.html"),
@@ -425,9 +425,9 @@ module.exports.buildConfig = function buildConfig(params) {
         __dirname,
         "src/connectors/webauthn-fallback.ts",
       ),
-      "connectors/passkey-login-connector": path.resolve(
+      "connectors/passkey-connector": path.resolve(
         __dirname,
-        "src/connectors/passkey-login-connector.ts",
+        "src/connectors/passkey-connector.ts",
       ),
       "connectors/sso": path.resolve(__dirname, "src/connectors/sso.ts"),
       "connectors/duo-redirect": path.resolve(__dirname, "src/connectors/duo-redirect.ts"),

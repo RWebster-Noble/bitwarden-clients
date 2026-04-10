@@ -12,6 +12,7 @@ type ContentMessageWindowData = {
   assertionData?: string;
   encryptedPrfOutput?: { ciphertext: string; iv: string } | null;
   connectorPublicKey?: string | null;
+  credentialId?: string;
 };
 type ContentMessageWindowEventParams = {
   data: ContentMessageWindowData;

@@ -165,6 +165,7 @@ import {
   WebAuthnPrfUnlockService,
   DefaultWebAuthnPrfUnlockService,
   SessionTimeoutSettingsComponentService,
+  UnlockViaWebAuthnComponentService,
 } from "@bitwarden/key-management-ui";
 import { DerivedStateProvider, GlobalStateProvider, StateProvider } from "@bitwarden/state";
 import { InlineDerivedStateProvider } from "@bitwarden/state-internal";
@@ -185,7 +186,9 @@ import { ExtensionLoginViaWebAuthnComponentService } from "../../auth/services/e
 import { ExtensionTwoFactorAuthComponentService } from "../../auth/services/extension-two-factor-auth-component.service";
 import { ExtensionTwoFactorAuthDuoComponentService } from "../../auth/services/extension-two-factor-auth-duo-component.service";
 import { ExtensionTwoFactorAuthWebAuthnComponentService } from "../../auth/services/extension-two-factor-auth-webauthn-component.service";
+import { ExtensionUnlockViaWebAuthnComponentService } from "../../auth/services/extension-unlock-via-webauthn-component.service";
 import { PasskeyLoginRelayService } from "../../auth/services/passkey-login-relay.service";
+import { PasskeyUnlockRelayService } from "../../auth/services/passkey-unlock-relay.service";
 import { AutofillService as AutofillServiceAbstraction } from "../../autofill/services/abstractions/autofill.service";
 import AutofillService from "../../autofill/services/autofill.service";
 import { InlineMenuFieldQualificationService } from "../../autofill/services/inline-menu-field-qualification.service";
@@ -664,6 +667,17 @@ const safeProviders: SafeProvider[] = [
       WINDOW,
       LogService,
       ConfigService,
+      UnlockViaWebAuthnComponentService,
+    ],
+  }),
+  safeProvider({
+    provide: UnlockViaWebAuthnComponentService,
+    useClass: ExtensionUnlockViaWebAuthnComponentService,
+    deps: [
+      PlatformUtilsService,
+      EnvironmentService,
+      AccountService,
+      UserDecryptionOptionsServiceAbstraction,
     ],
   }),
   safeProvider({
@@ -802,6 +816,11 @@ const safeProviders: SafeProvider[] = [
   safeProvider({
     provide: PasskeyLoginRelayService,
     useFactory: (logService: LogService) => new PasskeyLoginRelayService(logService),
+    deps: [LogService],
+  }),
+  safeProvider({
+    provide: PasskeyUnlockRelayService,
+    useFactory: (logService: LogService) => new PasskeyUnlockRelayService(logService),
     deps: [LogService],
   }),
 ];
