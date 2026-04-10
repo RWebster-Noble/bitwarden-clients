@@ -1,7 +1,7 @@
 // FIXME: Update this file to be type safe and remove this and next line
 // @ts-strict-ignore
 import { CommonModule } from "@angular/common";
-import { ChangeDetectionStrategy, Component, OnInit } from "@angular/core";
+import { ChangeDetectionStrategy, Component, OnInit, signal } from "@angular/core";
 import { Router, RouterModule } from "@angular/router";
 import { firstValueFrom } from "rxjs";
 
@@ -39,7 +39,7 @@ export type State = "loggingIn" | "loginFailed";
   imports: [CommonModule, RouterModule, JslibModule, ButtonModule, TypographyModule],
 })
 export class LoginWithPasskeyResultComponent implements OnInit {
-  protected readonly currentState: State = "loggingIn";
+  protected readonly currentState = signal<State>("loggingIn");
 
   protected readonly Icons = {
     TwoFactorAuthSecurityKeyIcon,
@@ -78,7 +78,7 @@ export class LoginWithPasskeyResultComponent implements OnInit {
   }
 
   protected retry() {
-    this.currentState = "loggingIn";
+    this.currentState.set("loggingIn");
     // FIXME: Verify that this floating promise is intentional. If it is, add an explanatory comment and ensure there is proper error handling.
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     this.completeLogin();
@@ -95,7 +95,7 @@ export class LoginWithPasskeyResultComponent implements OnInit {
         // No result available - timeout or error
         this.logService.error("[PasskeyLogin] No relay result available");
         this.validationService.showError(this.i18nService.t("passkeyLoginTimeout"));
-        this.currentState = "loginFailed";
+        this.currentState.set("loginFailed");
         this.setFailureIcon();
         return;
       }
@@ -169,7 +169,7 @@ export class LoginWithPasskeyResultComponent implements OnInit {
         this.validationService.showError(
           this.i18nService.t("twoFactorForPasskeysNotSupportedOnClientUpdateToLogIn"),
         );
-        this.currentState = "loginFailed";
+        this.currentState.set("loginFailed");
         this.setFailureIcon();
         return;
       }
@@ -201,7 +201,7 @@ export class LoginWithPasskeyResultComponent implements OnInit {
       } else if (error instanceof Error) {
         this.validationService.showError(error.message);
       }
-      this.currentState = "loginFailed";
+      this.currentState.set("loginFailed");
       this.setFailureIcon();
     }
   }
