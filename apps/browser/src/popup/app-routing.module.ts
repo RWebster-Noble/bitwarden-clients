@@ -22,6 +22,7 @@ import {
   DevicesIcon,
   TwoFactorTimeoutIcon,
   TwoFactorAuthEmailIcon,
+  TwoFactorAuthSecurityKeyIcon,
   UserLockIcon,
   VaultIcon,
   LockIcon,
@@ -56,10 +57,10 @@ import { AuthExtensionRoute } from "../auth/popup/constants/auth-extension-route
 import { fido2AuthGuard } from "../auth/popup/guards/fido2-auth.guard";
 import { platformPopoutGuard } from "../auth/popup/guards/platform-popout.guard";
 import { LoginWithPasskeyResultComponent } from "../auth/popup/login-with-passkey-result/login-with-passkey-result.component";
-import { UnlockWithPasskeyResultComponent } from "../auth/popup/unlock-with-passkey-result/unlock-with-passkey-result.component";
 import { AccountSecurityComponent } from "../auth/popup/settings/account-security.component";
 import { ChangePasswordPageComponent } from "../auth/popup/settings/change-password-page.component";
 import { ExtensionDeviceManagementComponent } from "../auth/popup/settings/extension-device-management.component";
+import { UnlockWithPasskeyResultComponent } from "../auth/popup/unlock-with-passkey-result/unlock-with-passkey-result.component";
 import { AutofillTriageComponent } from "../autofill/popup/autofill-triage/autofill-triage.component";
 import { Fido2Component } from "../autofill/popup/fido2/fido2.component";
 import { AutofillComponent } from "../autofill/popup/settings/autofill.component";

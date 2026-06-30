@@ -32,7 +32,6 @@ export class DefaultWebAuthnPrfUnlockService implements WebAuthnPrfUnlockService
     private platformUtilsService: PlatformUtilsService,
     private window: Window,
     private logService: LogService,
-    private logService: LogService,
     private configService: ConfigService,
     private unlockViaWebAuthnComponentService?: UnlockViaWebAuthnComponentService,
   ) {

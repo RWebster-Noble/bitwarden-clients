@@ -4,6 +4,16 @@
  */
 export abstract class LoginViaWebAuthnComponentService {
   /**
+   * Whether to show the "Trouble logging in?" text.
+   */
+  abstract showTroubleLoggingInText: boolean;
+
+  /**
+   * Whether to left-align the descriptive text.
+   */
+  abstract leftAlignDescription: boolean;
+
+  /**
    * Returns true when credentials.get() cannot be called directly in the current context
    * and must be relayed via the web vault connector page.
    */
@@ -20,6 +30,9 @@ export abstract class LoginViaWebAuthnComponentService {
  * Default implementation for platforms that support direct WebAuthn API calls.
  */
 export class DefaultLoginViaWebAuthnComponentService implements LoginViaWebAuthnComponentService {
+  showTroubleLoggingInText = true;
+  leftAlignDescription = false;
+
   shouldUseWebVaultRelay(): boolean {
     return false;
   }

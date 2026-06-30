@@ -12,6 +12,9 @@ import { PlatformUtilsService } from "@bitwarden/common/platform/abstractions/pl
  */
 @Injectable()
 export class ExtensionLoginViaWebAuthnComponentService implements LoginViaWebAuthnComponentService {
+  showTroubleLoggingInText = false;
+  leftAlignDescription = true;
+
   constructor(
     private platformUtilsService: PlatformUtilsService,
     private environmentService: EnvironmentService,
