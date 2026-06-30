@@ -1,215 +1,69 @@
-// FIXME: Update this file to be type safe and remove this and next line
-// @ts-strict-ignore
 import { CommonModule } from "@angular/common";
-import { ChangeDetectionStrategy, Component, OnInit, signal } from "@angular/core";
-import { Router, RouterModule } from "@angular/router";
-import { firstValueFrom } from "rxjs";
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from "@angular/core";
+import { RouterModule } from "@angular/router";
 
 import { JslibModule } from "@bitwarden/angular/jslib.module";
 import { TwoFactorAuthSecurityKeyIcon } from "@bitwarden/assets/svg";
-import { LoginSuccessHandlerService } from "@bitwarden/auth/common";
-import { WebAuthnLoginPrfKeyServiceAbstraction } from "@bitwarden/common/auth/abstractions/webauthn/webauthn-login-prf-key.service.abstraction";
-import { WebAuthnLoginServiceAbstraction } from "@bitwarden/common/auth/abstractions/webauthn/webauthn-login.service.abstraction";
-import { WebAuthnLoginCredentialAssertionView } from "@bitwarden/common/auth/models/view/webauthn-login/webauthn-login-credential-assertion.view";
-import { WebAuthnLoginAssertionResponseRequest } from "@bitwarden/common/auth/services/webauthn-login/request/webauthn-login-assertion-response.request";
-import { ClientType } from "@bitwarden/common/enums";
-import { ErrorResponse } from "@bitwarden/common/models/response/error.response";
 import { I18nService } from "@bitwarden/common/platform/abstractions/i18n.service";
-import { LogService } from "@bitwarden/common/platform/abstractions/log.service";
-import { PlatformUtilsService } from "@bitwarden/common/platform/abstractions/platform-utils.service";
 import { ValidationService } from "@bitwarden/common/platform/abstractions/validation.service";
 import {
   AnonLayoutWrapperDataService,
   ButtonModule,
+  IconModule,
   TypographyModule,
 } from "@bitwarden/components";
-import { KeyService } from "@bitwarden/key-management";
 
 import { BrowserApi } from "../../../platform/browser/browser-api";
-import { PasskeyRelayService, PasskeyLoginRelayResult } from "../../services/passkey-relay.service";
+import { LoginWithPasskeyResultService } from "../../services/login-with-passkey-result.service";
 import { closePasskeyResultPopout } from "../utils/auth-popout-window";
 
-export type State = "loggingIn" | "loginFailed";
+export type PasskeyLoginState = "loggingIn" | "loginFailed";
 
 @Component({
   selector: "app-login-with-passkey-result",
   templateUrl: "login-with-passkey-result.component.html",
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [CommonModule, RouterModule, JslibModule, ButtonModule, TypographyModule],
+  imports: [CommonModule, RouterModule, JslibModule, ButtonModule, IconModule, TypographyModule],
 })
 export class LoginWithPasskeyResultComponent implements OnInit {
-  protected readonly currentState = signal<State>("loggingIn");
+  protected readonly currentState = signal<PasskeyLoginState>("loggingIn");
 
   protected readonly Icons = {
     TwoFactorAuthSecurityKeyIcon,
   };
 
-  private readonly successRoutes: Record<ClientType, string> = {
-    [ClientType.Web]: "/vault",
-    [ClientType.Browser]: "/tabs/vault",
-    [ClientType.Desktop]: "/vault",
-    [ClientType.Cli]: "/vault",
-  };
-
-  protected get successRoute(): string {
-    const clientType = this.platformUtilsService.getClientType();
-    return this.successRoutes[clientType] || "/vault";
-  }
-
-  constructor(
-    private readonly passkeyRelayService: PasskeyRelayService,
-    private readonly webAuthnLoginService: WebAuthnLoginServiceAbstraction,
-    private readonly webAuthnLoginPrfKeyService: WebAuthnLoginPrfKeyServiceAbstraction,
-    private readonly router: Router,
-    private readonly logService: LogService,
-    private readonly validationService: ValidationService,
-    private readonly i18nService: I18nService,
-    private readonly loginSuccessHandlerService: LoginSuccessHandlerService,
-    private readonly keyService: KeyService,
-    private readonly platformUtilsService: PlatformUtilsService,
-    private readonly anonLayoutWrapperDataService: AnonLayoutWrapperDataService,
-  ) {}
+  private readonly loginWithPasskeyResultService = inject(LoginWithPasskeyResultService);
+  private readonly i18nService = inject(I18nService);
+  private readonly validationService = inject(ValidationService);
+  private readonly anonLayoutWrapperDataService = inject(AnonLayoutWrapperDataService);
 
   ngOnInit(): void {
-    // FIXME: Verify that this floating promise is intentional. If it is, add an explanatory comment and ensure there is proper error handling.
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    this.completeLogin();
+    void this.completeLogin();
   }
 
-  protected retry() {
+  protected retry(): void {
     this.currentState.set("loggingIn");
-    // FIXME: Verify that this floating promise is intentional. If it is, add an explanatory comment and ensure there is proper error handling.
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    this.completeLogin();
+    void this.completeLogin();
   }
 
   private async completeLogin(): Promise<void> {
     try {
-      this.logService.info("[PasskeyLogin] Starting completeLogin");
+      const outcome = await this.loginWithPasskeyResultService.completeLogin();
 
-      // Consume the relay result
-      const relayResult =
-        (await this.passkeyRelayService.consumeResult()) as PasskeyLoginRelayResult | null;
-
-      if (relayResult && relayResult.type !== "login") {
-        this.logService.error("[PasskeyLogin] Unexpected result type:", relayResult.type);
-        this.validationService.showError(this.i18nService.t("passkeyLoginTimeout"));
+      if (outcome.success === false) {
+        this.validationService.showError(outcome.errorMessage);
         this.currentState.set("loginFailed");
         this.setFailureIcon();
         return;
       }
 
-      if (!relayResult) {
-        // No result available - timeout or error
-        this.logService.error("[PasskeyLogin] No relay result available");
-        this.validationService.showError(this.i18nService.t("passkeyLoginTimeout"));
-        this.currentState.set("loginFailed");
-        this.setFailureIcon();
-        return;
-      }
-
-      this.logService.info(
-        "[PasskeyLogin] Got relay result, token:",
-        relayResult.token.substring(0, 20) + "...",
-      );
-
-      const { token, assertionData, prfOutput } = relayResult;
-
-      this.logService.info("[PasskeyLogin] assertionData length:", assertionData.length);
-
-      // Deserialize assertion data
-      let parsedAssertion;
-      try {
-        parsedAssertion = JSON.parse(assertionData);
-        this.logService.info(
-          "[PasskeyLogin] Parsed assertion:",
-          JSON.stringify({
-            id: parsedAssertion.id,
-            type: parsedAssertion.type,
-            rawIdLength: parsedAssertion.rawId?.length,
-            responseKeys: Object.keys(parsedAssertion.response || {}),
-          }),
-        );
-      } catch (parseError) {
-        this.logService.error("[PasskeyLogin] Failed to parse assertionData:", parseError);
-        throw parseError;
-      }
-
-      let deviceResponse: WebAuthnLoginAssertionResponseRequest;
-      try {
-        deviceResponse = Object.assign(
-          Object.create(WebAuthnLoginAssertionResponseRequest.prototype),
-          parsedAssertion,
-        ) as WebAuthnLoginAssertionResponseRequest;
-        this.logService.info("[PasskeyLogin] Created deviceResponse successfully");
-      } catch (assignError) {
-        this.logService.error("[PasskeyLogin] Failed to assign deviceResponse:", assignError);
-        throw assignError;
-      }
-
-      // Derive PRF key if prfOutput is present
-      let prfKey = null;
-      if (prfOutput) {
-        this.logService.info("[PasskeyLogin] Deriving PRF key...");
-        prfKey = await this.webAuthnLoginPrfKeyService.createSymmetricKeyFromPrf(prfOutput);
-        // Zero the raw PRF bytes immediately after use
-        new Uint8Array(prfOutput).fill(0);
-        this.logService.info("[PasskeyLogin] PRF key derived successfully");
-      } else {
-        this.logService.info(
-          "[PasskeyLogin] No PRF output, continuing without vault decryption key",
-        );
-      }
-
-      // Create credential assertion view
-      this.logService.info("[PasskeyLogin] Creating credential assertion view...");
-      const assertion = new WebAuthnLoginCredentialAssertionView(token, deviceResponse, prfKey);
-
-      // Log in using the assertion
-      this.logService.info("[PasskeyLogin] Calling webAuthnLoginService.logIn...");
-      const authResult = await this.webAuthnLoginService.logIn(assertion);
-      this.logService.info("[PasskeyLogin] Login result:", {
-        requiresTwoFactor: authResult.requiresTwoFactor,
-        userId: authResult.userId,
-      });
-
-      if (authResult.requiresTwoFactor) {
-        this.validationService.showError(
-          this.i18nService.t("twoFactorForPasskeysNotSupportedOnClientUpdateToLogIn"),
-        );
-        this.currentState.set("loginFailed");
-        this.setFailureIcon();
-        return;
-      }
-
-      // Only run loginSuccessHandlerService if webAuthn is used for vault decryption.
-      this.logService.info("[PasskeyLogin] Checking user key...");
-      const userKey = await firstValueFrom(this.keyService.userKey$(authResult.userId));
-      this.logService.info("[PasskeyLogin] User key exists:", !!userKey);
-      if (userKey) {
-        this.logService.info("[PasskeyLogin] Running login success handler...");
-        await this.loginSuccessHandlerService.run(authResult.userId, null);
-      }
-
-      // Reload any other open extension windows (e.g., popped-out sidebar) so they
-      // re-evaluate auth guards and navigate to the vault. This matches the 2FA flow
-      // where reloadOpenWindows() is called after login to update stale windows.
-      this.logService.info("[PasskeyLogin] Reloading open windows...");
+      // Reload other open extension windows so they re-evaluate auth guards
+      // and navigate to the vault. Then close this popout.
       BrowserApi.reloadOpenWindows(true); // true = exclude current window
-
-      // Close this popout — the user will re-open the extension to see the vault.
-      // This matches the 2FA flow where closeSingleActionPopouts() closes the
-      // WebAuthn popout after the 2FA token is submitted.
-      this.logService.info("[PasskeyLogin] Login complete, closing result popout...");
       await closePasskeyResultPopout();
-    } catch (error) {
-      this.logService.error("[PasskeyLogin] Error in completeLogin:", error);
-      if (error instanceof ErrorResponse) {
-        this.validationService.showError(this.i18nService.t("invalidPasskeyPleaseTryAgain"));
-      } else if (error instanceof Error) {
-        this.validationService.showError(error.message);
-      }
+    } catch {
+      this.validationService.showError(this.i18nService.t("invalidPasskeyPleaseTryAgain"));
       this.currentState.set("loginFailed");
       this.setFailureIcon();
     }
@@ -222,7 +76,7 @@ export class LoginWithPasskeyResultComponent implements OnInit {
   }
 
   private setFailureIcon(): void {
-    // For now, use the same icon but the component could show a different one
+    // For now, use the same icon, but the component could show a different one.
     this.setDefaultIcon();
   }
 }

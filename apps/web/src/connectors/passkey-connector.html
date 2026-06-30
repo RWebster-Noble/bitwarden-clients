@@ -1,5 +1,5 @@
 <!doctype html>
-<html class="theme_light tw-h-full">
+<html class="theme_light tw-h-full" lang="en">
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -10,14 +10,19 @@
 
   <body class="tw-min-h-full !tw-min-w-0 tw-text-center !tw-bg-background-alt">
     <main class="tw-flex tw-w-full tw-mx-auto tw-flex-col tw-px-6 tw-pt-6 tw-pb-4 tw-text-main">
-      <a class="tw-w-[128px] tw-block tw-mb-12 [&>*]:tw-align-top">
+      <a href="#" class="tw-w-[128px] tw-block tw-mb-12 [&>*]:tw-align-top" aria-label="Bitwarden">
         <img class="new-logo-themed" alt="Bitwarden" />
       </a>
 
       <div class="tw-text-center tw-mb-6 tw-max-w-md tw-mx-auto">
         <div class="tw-mx-auto tw-max-w-20 sm:tw-max-w-24">
           <!-- Matches TwoFactorAuthSecurityKeyIcon -->
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="3.33 3.33 76.49 75.83">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="3.33 3.33 76.49 75.83"
+            aria-hidden="true"
+          >
             <path
               class="tw-fill-illustration-bg-primary"
               d="M3.333 8.334a5 5 0 0 1 5-5H35a5 5 0 0 1 5 5v56.667a5 5 0 0 1-5 5H8.333a5 5 0 0 1-5-5V8.334Z"
@@ -82,14 +87,9 @@
         </div>
 
         <div>
-          <!-- Small screens -->
-          <h1 bitTypography="h3" class="tw-mt-2 sm:tw-hidden" id="title-smaller-screens"></h1>
-          <!-- Medium to Larger screens -->
-          <h1
-            bitTypography="h2"
-            class="tw-mt-2 tw-hidden sm:tw-block"
-            id="title-larger-screens"
-          ></h1>
+          <!-- Content is set dynamically via JavaScript at runtime -->
+          <!-- eslint-disable-next-line @angular-eslint/template/elements-content -->
+          <h1 class="tw-mt-2 tw-text-2xl sm:tw-text-3xl tw-font-semibold" id="title"></h1>
         </div>
 
         <div class="tw-text-sm sm:tw-text-base" id="subtitle"></div>
@@ -101,8 +101,17 @@
         <div
           class="tw-rounded-2xl tw-mb-10 tw-mx-auto tw-w-full sm:tw-bg-background sm:tw-border sm:tw-border-solid sm:tw-border-secondary-300 sm:tw-p-8"
         >
-          <p id="msg" class="tw-hidden"></p>
+          <p
+            id="msg"
+            class="tw-hidden"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            tabindex="-1"
+          ></p>
 
+          <!-- Content is set dynamically via JavaScript at runtime -->
+          <!-- eslint-disable-next-line @angular-eslint/template/elements-content -->
           <button
             type="button"
             id="passkey-button"

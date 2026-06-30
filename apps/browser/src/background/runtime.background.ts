@@ -626,11 +626,11 @@ export default class RuntimeBackground {
     connectorPublicKey?: string | null;
     referrer: string;
   }): Promise<void> {
-    const isLogin = msg.type === "login";
-    const logPrefix = isLogin ? "[PasskeyLogin]" : "[PasskeyUnlock]";
+    const login = msg.type === "login";
+    const logPrefix = login ? "[PasskeyLogin]" : "[PasskeyUnlock]";
 
     // Use unified popout function
-    const popoutType = isLogin ? "login" : "unlock";
+    const popoutType = login ? "login" : "unlock";
 
     try {
       this.logService.info(`${logPrefix} handlePasskeyResult called`);
@@ -664,7 +664,7 @@ export default class RuntimeBackground {
       this.logService.info(`${logPrefix} Storing result in relay service...`);
 
       // Store the result in the relay service for the popout to consume
-      if (isLogin) {
+      if (login) {
         await this.passkeyRelayService.storeResult({
           type: "login",
           token: msg.token!,
@@ -679,15 +679,17 @@ export default class RuntimeBackground {
         });
       }
 
-      // Clear the ECDH session (private key is discarded)
-      this.pendingPasskeyLoginEcdhSession = null;
-
       this.logService.info(`${logPrefix} Opening result popout...`);
       // Open the result popout
       await openPasskeyResultPopout(popoutType);
       this.logService.info(`${logPrefix} Result popout opened successfully`);
     } catch (error) {
       this.logService.error(`${logPrefix} Error handling passkey result`, error);
+    } finally {
+      // Always discard the ephemeral ECDH private key, even on failure. CryptoKey objects
+      // cannot be explicitly zeroed in JavaScript; removing the only reference is the best
+      // available mitigation.
+      this.pendingPasskeyLoginEcdhSession = null;
     }
   }
 
@@ -793,6 +795,9 @@ export default class RuntimeBackground {
    * @returns The base64url-encoded public key to pass to the connector page
    */
   async initiatePasskeyRelay(): Promise<string> {
+    // Discard any previous session private key to avoid retaining stale key material.
+    this.pendingPasskeyLoginEcdhSession = null;
+
     // Generate ephemeral ECDH key pair (P-256)
     const keyPair = await crypto.subtle.generateKey(
       {

@@ -28,7 +28,7 @@ export type PasskeyRelayResult = PasskeyLoginRelayResult | PasskeyUnlockRelayRes
 
 /**
  * Service for relaying passkey results between the background script
- * and the popup. Uses chrome.storage.local for cross-context communication.
+ * and the popup. Uses chrome.storage.session for cross-context communication.
  * Handles both login and unlock flows.
  */
 export class PasskeyRelayService {
@@ -43,7 +43,7 @@ export class PasskeyRelayService {
   private setupStorageListener(): void {
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
       this.storageChangeListener = (changes, areaName) => {
-        if (areaName === "local" && changes[this.STORAGE_KEY]) {
+        if (areaName === "session" && changes[this.STORAGE_KEY]) {
           this.logService.info("[PasskeyRelay] Storage change detected");
           this.resolveStorageChange?.();
         }
@@ -53,7 +53,7 @@ export class PasskeyRelayService {
   }
 
   /**
-   * Stores the relay result in chrome.storage.local.
+   * Stores the relay result in chrome.storage.session.
    * Called from the background after processing the passkey result.
    */
   async storeResult(result: PasskeyRelayResult): Promise<void> {
@@ -66,7 +66,7 @@ export class PasskeyRelayService {
       timestamp: Date.now(),
     };
 
-    await chrome.storage.local.set({ [this.STORAGE_KEY]: storableResult });
+    await chrome.storage.session.set({ [this.STORAGE_KEY]: storableResult });
     this.logService.info("[PasskeyRelay] Result stored successfully");
   }
 
@@ -80,7 +80,7 @@ export class PasskeyRelayService {
 
     // Check storage immediately first - the result may already be there
     // because the background stores it before opening the popup
-    const data = await chrome.storage.local.get(this.STORAGE_KEY);
+    const data = await chrome.storage.session.get(this.STORAGE_KEY);
     let storedResult = data[this.STORAGE_KEY];
 
     if (!storedResult) {
@@ -92,7 +92,7 @@ export class PasskeyRelayService {
         await this.waitForStorageChange(5000); // 5 seconds timeout
 
         // Try again after receiving the event
-        const dataAfterEvent = await chrome.storage.local.get(this.STORAGE_KEY);
+        const dataAfterEvent = await chrome.storage.session.get(this.STORAGE_KEY);
         storedResult = dataAfterEvent[this.STORAGE_KEY];
       } catch {
         this.logService.error("[PasskeyRelay] Timeout waiting for result");
@@ -108,7 +108,7 @@ export class PasskeyRelayService {
     this.logService.info("[PasskeyRelay] Result found, converting format");
 
     // Clear the result from storage
-    await chrome.storage.local.remove(this.STORAGE_KEY);
+    await chrome.storage.session.remove(this.STORAGE_KEY);
 
     // Convert array back to ArrayBuffer
     const prfOutput = storedResult.prfOutput ? new Uint8Array(storedResult.prfOutput).buffer : null;
@@ -154,7 +154,7 @@ export class PasskeyRelayService {
    * Checks if there's a pending result available.
    */
   async hasPendingResult(): Promise<boolean> {
-    const data = await chrome.storage.local.get(this.STORAGE_KEY);
+    const data = await chrome.storage.session.get(this.STORAGE_KEY);
     const storedResult = data[this.STORAGE_KEY];
 
     if (!storedResult) {
@@ -164,7 +164,7 @@ export class PasskeyRelayService {
     // Check if result is expired (older than 5 minutes)
     const maxAge = 5 * 60 * 1000; // 5 minutes
     if (Date.now() - storedResult.timestamp > maxAge) {
-      await chrome.storage.local.remove(this.STORAGE_KEY);
+      await chrome.storage.session.remove(this.STORAGE_KEY);
       return false;
     }
 
@@ -177,6 +177,6 @@ export class PasskeyRelayService {
    */
   async clearResult(): Promise<void> {
     this.logService.info("[PasskeyRelay] Clearing result from storage");
-    await chrome.storage.local.remove(this.STORAGE_KEY);
+    await chrome.storage.session.remove(this.STORAGE_KEY);
   }
 }

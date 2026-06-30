@@ -3,11 +3,11 @@
 import { getQsParam } from "./common";
 import { TranslationService } from "./translation.service";
 
-let parsed = false;
+let parametersParsed = false;
 let locale: string = null;
 let localeService: TranslationService = null;
 let extensionPublicKeyB64: string = null;
-let sentSuccess = false;
+let resultSent = false;
 let mode: "login" | "unlock" = "login";
 let unlockCredentials: { id: string; transports: string[] }[] | null = null;
 
@@ -33,7 +33,7 @@ async function getLoginWithPrfSalt(): Promise<Uint8Array> {
 }
 
 function parseParameters() {
-  if (parsed) {
+  if (parametersParsed) {
     return;
   }
 
@@ -65,7 +65,7 @@ function parseParameters() {
   }
 
   locale = getQsParam("locale") ?? "en";
-  parsed = true;
+  parametersParsed = true;
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -79,19 +79,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   await localeService.init();
 
+  document.documentElement.lang = locale;
+
   const button = document.getElementById("passkey-button");
   button.innerText = localeService.t("authenticateWithPasskey");
-  button.onclick = start;
+  button.onclick = () => void start();
 
-  const titleForSmallerScreens = document.getElementById("title-smaller-screens");
-  const titleForLargerScreens = document.getElementById("title-larger-screens");
+  const title = document.getElementById("title");
 
   if (mode === "unlock") {
-    titleForSmallerScreens.innerText = localeService.t("unlockWithPasskey");
-    titleForLargerScreens.innerText = localeService.t("unlockWithPasskey");
+    title.innerText = localeService.t("unlockWithPasskey");
   } else {
-    titleForSmallerScreens.innerText = localeService.t("logInWithPasskey");
-    titleForLargerScreens.innerText = localeService.t("logInWithPasskey");
+    title.innerText = localeService.t("logInWithPasskey");
   }
 
   const subtitle = document.getElementById("subtitle");
@@ -104,12 +103,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Auto-start if user has already clicked the button previously
   const autoStart = getQsParam("autoStart");
   if (autoStart === "true") {
-    start();
+    void start();
   }
 });
 
 function start() {
-  if (sentSuccess) {
+  if (resultSent) {
     return;
   }
 
@@ -124,9 +123,7 @@ function start() {
     return;
   }
 
-  // FIXME: Verify that this floating promise is intentional. If it is, add an explanatory comment and ensure there is proper error handling.
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  initPasskeyLogin();
+  void initPasskeyLogin();
 }
 
 async function initPasskeyLogin() {
@@ -169,7 +166,7 @@ async function initPasskeyLogin() {
       prfOutput = (credential.getClientExtensionResults() as any)?.prf?.results?.first ?? null;
     }
 
-    if (sentSuccess) {
+    if (resultSent) {
       return;
     }
 
@@ -197,7 +194,7 @@ async function initPasskeyLogin() {
         },
         "*",
       );
-      sentSuccess = true;
+      resultSent = true;
       success(localeService.t("passkeyUnlockSuccess"));
     } else {
       // Login mode: Send full assertion data
@@ -212,7 +209,7 @@ async function initPasskeyLogin() {
         },
         "*",
       );
-      sentSuccess = true;
+      resultSent = true;
       success(localeService.t("passkeyLoginSuccess"));
     }
   } catch (err) {
