@@ -49,25 +49,31 @@ export class UnlockWithPasskeyResultComponent implements OnInit {
   }
 
   private async completeUnlock(): Promise<void> {
-    const outcome = await this.unlockWithPasskeyResultService.completeUnlock();
+    try {
+      const outcome = await this.unlockWithPasskeyResultService.completeUnlock();
 
-    if (outcome.success === false) {
-      if (outcome.canceled) {
-        await closePasskeyResultPopout();
+      if (outcome.success === false) {
+        if (outcome.canceled) {
+          await closePasskeyResultPopout();
+          return;
+        }
+
+        this.validationService.showError(outcome.errorMessage);
+        this.currentState.set("unlockFailed");
+        this.setFailureIcon();
         return;
       }
 
-      this.validationService.showError(outcome.errorMessage);
+      // Reload other open extension windows so they re-evaluate auth guards
+      // and navigate to the vault. Then close this popout.
+      BrowserApi.reloadOpenWindows(true); // true = exclude current window
+      await closePasskeyResultPopout();
+      await this.router.navigate(["/tabs/vault"]);
+    } catch {
+      this.validationService.showError(this.i18nService.t("invalidPasskeyPleaseTryAgain"));
       this.currentState.set("unlockFailed");
       this.setFailureIcon();
-      return;
     }
-
-    // Reload other open extension windows so they re-evaluate auth guards
-    // and navigate to the vault. Then close this popout.
-    BrowserApi.reloadOpenWindows(true); // true = exclude current window
-    await closePasskeyResultPopout();
-    await this.router.navigate(["/tabs/vault"]);
   }
 
   private setDefaultIcon(): void {
