@@ -1,21 +1,19 @@
 {
-  "name": "@bitwarden/auto-confirm",
+  "name": "auto-confirm",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/auto-confirm/src",
   "projectType": "library",
   "tags": [],
   "targets": {
     "build": {
-      "executor": "nx:run-script",
+      "executor": "@nx/js:tsc",
       "outputs": ["{options.outputPath}"],
       "options": {
-        "script": "build"
-      }
-    },
-    "build:watch": {
-      "executor": "nx:run-script",
-      "options": {
-        "script": "build:watch"
+        "outputPath": "dist/libs/auto-confirm",
+        "main": "libs/auto-confirm/src/index.ts",
+        "tsConfig": "libs/auto-confirm/tsconfig.lib.json",
+        "assets": ["libs/auto-confirm/*.md"],
+        "rootDir": "libs/auto-confirm/src"
       }
     },
     "lint": {

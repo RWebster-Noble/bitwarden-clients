@@ -1,21 +1,5 @@
 {
-  "cSpell.words": [
-    "Bitwarden",
-    "ciphertext",
-    "CLEANEXIT",
-    "Csprng",
-    "Decapsulation",
-    "decryptable",
-    "ECDH",
-    "HKDF",
-    "hostnames",
-    "passwordless",
-    "Popout",
-    "Reprompt",
-    "Statefulness",
-    "takeuntil",
-    "webauthn"
-  ],
+  "cSpell.words": ["Csprng", "Decapsulation", "decryptable", "Popout", "Reprompt", "takeuntil"],
   "search.exclude": {
     "**/locales/[^e]*/messages.json": true,
     "**/locales/*[^n]/messages.json": true,

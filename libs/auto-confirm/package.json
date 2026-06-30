@@ -7,10 +7,5 @@
   "main": "index.js",
   "types": "index.d.ts",
   "license": "GPL-3.0",
-  "author": "admin-console",
-  "scripts": {
-    "clean": "rimraf dist",
-    "build": "npm run clean && tsc",
-    "build:watch": "npm run clean && tsc -watch"
-  }
+  "author": "admin-console"
 }
